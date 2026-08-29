@@ -964,10 +964,16 @@ def analyse(canal_fc: dict, command_fc: Optional[dict], season: int,
                 reverse=bool(direction.get("reverse")),
                 canal_width_m=f.get("properties", {}).get("width_m"))
             if continuity.get("status") == "OK":
-                fd = continuity.get("first_dry_reach")
-                print("  continuity       : "
-                      + (f"water not detected beyond reach {fd - 1}"
-                         if fd else "no break detected")
+                phrase = {
+                    "STOPS": (f"water not detected beyond reach "
+                              f"{continuity.get('water_reaches_to')} of "
+                              f"{continuity.get('n_reaches')}"),
+                    "CONTINUOUS": "no break detected",
+                    "NO WATER DETECTED": "no standing water in any reach",
+                    "INTERMITTENT": ("intermittent - wet and dry interleaved, "
+                                     "so there is no single stopping point"),
+                }.get(continuity.get("pattern"), continuity.get("pattern", "?"))
+                print(f"  continuity       : {phrase}"
                       + f"  ({continuity['wet_reaches']} wet / "
                         f"{continuity['dry_reaches']} dry / "
                         f"{continuity['unobserved_reaches']} unseen)")

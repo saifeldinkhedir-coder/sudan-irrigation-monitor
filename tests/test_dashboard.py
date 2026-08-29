@@ -219,6 +219,7 @@ def test_the_sample_still_exercises_every_display_state():
 def test_continuity_headline_names_a_place_not_a_percentage():
     s = D.continuity_summary({"continuity": {
         "status": "OK", "n_reaches": 8, "first_dry_reach": 5,
+        "pattern": "STOPS", "water_reaches_to": 4,
         "states": ["WET"] * 4 + ["DRY"] * 4,
         "wet_reaches": 4, "dry_reaches": 4, "unobserved_reaches": 0,
         "longest_dry_run": 4, "interpretation": "standing water per reach",
@@ -230,6 +231,7 @@ def test_continuity_headline_names_a_place_not_a_percentage():
 def test_continuity_carries_the_unobserved_count_through():
     s = D.continuity_summary({"continuity": {
         "status": "OK", "n_reaches": 6, "first_dry_reach": None,
+        "pattern": "CONTINUOUS", "water_reaches_to": None,
         "states": ["WET", "WET", "UNOBSERVED", "WET", "WET", "WET"],
         "wet_reaches": 5, "dry_reaches": 0, "unobserved_reaches": 1,
         "longest_dry_run": 0, "interpretation": "",
@@ -241,6 +243,7 @@ def test_continuity_carries_the_unobserved_count_through():
 def test_a_narrow_canal_surfaces_its_resolvability_warning():
     s = D.continuity_summary({"continuity": {
         "status": "OK", "n_reaches": 4, "first_dry_reach": 1,
+        "pattern": "NO WATER DETECTED", "water_reaches_to": None,
         "states": ["DRY"] * 4, "wet_reaches": 0, "dry_reaches": 4,
         "unobserved_reaches": 0, "longest_dry_run": 4, "interpretation": "",
         "resolvability": {"resolvable": False,
@@ -287,7 +290,10 @@ def test_the_sample_exercises_every_continuity_and_efficiency_path():
     conts = [D.continuity_summary(c) for c in r["canals"]]
     assert any("not detected beyond reach" in c["headline"] for c in conts)
     assert any("no break detected" in c["headline"] for c in conts)
+    assert any("no single stopping point" in c["headline"] for c in conts)
     assert any(c["resolvable"] is False for c in conts)
+    # and none of them invents a location out of a pattern without one
+    assert not any("reach 0" in c["headline"] for c in conts)
 
     effs = [D.efficiency_summary(c) for c in r["canals"]]
     assert any(e["efficiency"] is None for e in effs)
@@ -323,3 +329,25 @@ def test_an_empty_strip_does_not_crash():
 def test_the_legend_names_all_three_states():
     for word in ("water detected", "not detected", "not observed"):
         assert word in D.REACH_LEGEND
+
+
+def test_the_continuity_headline_never_names_reach_zero():
+    """Regression on the live New Halfa output: 'beyond reach 0'."""
+    s = D.continuity_summary({"continuity": {
+        "status": "OK", "n_reaches": 5, "pattern": "INTERMITTENT",
+        "water_reaches_to": None, "states": ["DRY"] + ["WET"] * 3 + ["DRY"],
+        "wet_reaches": 3, "dry_reaches": 2, "unobserved_reaches": 0,
+        "longest_dry_run": 1, "interpretation": "",
+        "resolvability": {"resolvable": True, "note": ""}}})
+    assert "reach 0" not in s["headline"]
+    assert "no single stopping point" in s["headline"]
+
+
+def test_a_clean_stop_still_names_the_place():
+    s = D.continuity_summary({"continuity": {
+        "status": "OK", "n_reaches": 6, "pattern": "STOPS",
+        "water_reaches_to": 3, "states": ["WET"] * 3 + ["DRY"] * 3,
+        "wet_reaches": 3, "dry_reaches": 3, "unobserved_reaches": 0,
+        "longest_dry_run": 3, "interpretation": "",
+        "resolvability": {"resolvable": True, "note": ""}}})
+    assert s["headline"] == "water not detected beyond reach 3 of 6"

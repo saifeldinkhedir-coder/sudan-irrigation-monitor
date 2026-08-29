@@ -136,6 +136,25 @@ def continuity_profile(reach_wet_fractions: Sequence[Optional[float]],
     dry_count = states.count("DRY")
     unobserved = states.count("UNOBSERVED")
 
+    # PATTERN: does this canal have a single stopping point at all?
+    #
+    # "Water stopped at reach K" is only a true sentence when the dry reaches
+    # form a clean tail after the last wet one. A canal reading wet-dry-wet-dry
+    # has no stopping point, and naming one would send someone to a specific
+    # place on the strength of a pattern that does not support it. Interleaving
+    # is common on a narrow canal, where each reach is a mixed pixel of water,
+    # bank and vegetation and the wet/dry call flickers - so this distinction is
+    # not an edge case here, it is the normal case for a Gezira minor.
+    if wet_count == 0:
+        pattern = "NO WATER DETECTED"
+    elif dry_count == 0:
+        pattern = "CONTINUOUS"
+    elif all(s != "WET" for s in states[last_wet + 1:]) and \
+            "DRY" not in states[:last_wet]:
+        pattern = "STOPS"          # wet head, dry tail, one transition
+    else:
+        pattern = "INTERMITTENT"   # wet and dry interleaved; no stopping point
+
     return {
         "status": "OK",
         "n_reaches": n,
@@ -143,6 +162,11 @@ def continuity_profile(reach_wet_fractions: Sequence[Optional[float]],
         "wet_reaches": wet_count,
         "dry_reaches": dry_count,
         "unobserved_reaches": unobserved,
+        "pattern": pattern,
+        # Only a STOPS pattern has a stopping point. For anything else this is
+        # None, so no caller can phrase a location out of a pattern that has
+        # none.
+        "water_reaches_to": (last_wet + 1) if pattern == "STOPS" else None,
         "first_dry_reach": None if first_dry is None else first_dry + 1,
         "last_wet_reach": None if last_wet is None else last_wet + 1,
         "longest_dry_run": longest_dry,

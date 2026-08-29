@@ -192,3 +192,47 @@ def test_reach_fractions_require_the_caller_to_have_resolved_direction(ee_env):
     import inspect
     assert "reverse" in inspect.signature(nw.reach_wet_fractions).parameters
     assert "reverse" in inspect.signature(nw.canal_continuity).parameters
+
+
+# --- the stopping point only exists when the pattern supports one -------------
+#
+# The live New Halfa run on 2026-08-30 printed "water not detected beyond reach
+# 0 (3 wet / 2 dry)". Two faults in one line: reach 0 does not exist, and water
+# plainly WAS detected after the reach being named. The headline was derived
+# from first_dry_reach, which is only the stopping point when the dry reaches
+# form a clean tail. On a narrow canal, where each reach is a mixed pixel and
+# the wet/dry call flickers, interleaving is the normal case, not an edge case.
+
+class TestContinuityPattern:
+    def test_a_clean_stop_names_the_last_wet_reach(self):
+        out = nw.continuity_profile([0.6, 0.6, 0.6, 0.0, 0.0, 0.0])
+        assert out["pattern"] == "STOPS"
+        assert out["water_reaches_to"] == 3
+
+    def test_a_dry_reach_before_wet_ones_is_not_a_stopping_point(self):
+        """The exact live case: dry at reach 1, wet afterwards."""
+        out = nw.continuity_profile([0.0, 0.6, 0.6, 0.6, 0.0])
+        assert out["pattern"] == "INTERMITTENT"
+        assert out["water_reaches_to"] is None
+        assert out["wet_reaches"] == 3
+
+    def test_wet_dry_wet_is_intermittent_not_a_stop(self):
+        out = nw.continuity_profile([0.6, 0.0, 0.6, 0.0])
+        assert out["pattern"] == "INTERMITTENT"
+        assert out["water_reaches_to"] is None
+
+    def test_a_fully_wet_canal_is_continuous(self):
+        out = nw.continuity_profile([0.5] * 6)
+        assert out["pattern"] == "CONTINUOUS"
+        assert out["water_reaches_to"] is None
+
+    def test_a_fully_dry_canal_reports_no_water(self):
+        out = nw.continuity_profile([0.0, 0.01, 0.0])
+        assert out["pattern"] == "NO WATER DETECTED"
+        assert out["water_reaches_to"] is None
+
+    def test_no_pattern_ever_yields_reach_zero(self):
+        for series in ([0.0, 0.6, 0.6], [0.0] * 4, [0.6] * 4,
+                       [0.6, 0.0, 0.6], [0.6, 0.6, 0.0]):
+            out = nw.continuity_profile(series)
+            assert out.get("water_reaches_to") != 0

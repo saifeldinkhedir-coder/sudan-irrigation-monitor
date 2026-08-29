@@ -193,17 +193,21 @@ def continuity_summary(canal: dict) -> dict:
     if c.get("status") != "OK":
         return {"available": False,
                 "reason": c.get("reason", c.get("status", "not available"))}
-    fd = c.get("first_dry_reach")
     n = c.get("n_reaches")
-    # Order matters. A canal dry from reach 1 has first_dry_reach == 1, and
-    # "water not detected beyond reach 0" is not a sentence about anywhere. The
-    # no-water case is checked first so it gets its own phrasing.
-    if not c.get("wet_reaches"):
-        headline = "no standing water detected in any reach"
-    elif fd:
-        headline = f"water not detected beyond reach {fd - 1} of {n}"
-    else:
-        headline = f"no break detected across {n} reaches"
+    # The headline is driven by the PATTERN, not by first_dry_reach. An earlier
+    # version said "water not detected beyond reach {first_dry - 1}", which was
+    # wrong twice: it produced "beyond reach 0" for a canal dry at reach 1, and
+    # - worse - it named a stopping point for canals whose wet and dry reaches
+    # interleave, where water was plainly detected after the reach it named.
+    # The live New Halfa run printed exactly that.
+    headline = {
+        "STOPS": (f"water not detected beyond reach "
+                  f"{c.get('water_reaches_to')} of {n}"),
+        "CONTINUOUS": f"no break detected across {n} reaches",
+        "NO WATER DETECTED": "no standing water detected in any reach",
+        "INTERMITTENT": (f"intermittent across {n} reaches — wet and dry "
+                         "interleaved, so there is no single stopping point"),
+    }.get(c.get("pattern"), "pattern not available")
     res = c.get("resolvability") or {}
     return {
         "available": True,

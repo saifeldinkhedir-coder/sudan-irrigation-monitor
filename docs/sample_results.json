@@ -204,7 +204,9 @@
           "note": "30.0 m is about 3.0 pixels at 10 m. Radar water figures for this canal are meaningful.",
           "threshold_m": 20.0,
           "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
-        }
+        },
+        "pattern": "STOPS",
+        "water_reaches_to": 3
       },
       "water_use_efficiency": {
         "status": "OK",
@@ -403,7 +405,9 @@
           "note": "45.0 m is about 4.5 pixels at 10 m. Radar water figures for this canal are meaningful.",
           "threshold_m": 20.0,
           "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
-        }
+        },
+        "pattern": "CONTINUOUS",
+        "water_reaches_to": null
       },
       "water_use_efficiency": {
         "status": "OK",
@@ -572,30 +576,28 @@
       },
       "continuity": {
         "status": "OK",
-        "n_reaches": 6,
+        "n_reaches": 5,
         "states": [
-          "WET",
-          "UNOBSERVED",
-          "WET",
           "DRY",
-          "DRY",
+          "WET",
+          "WET",
+          "WET",
           "DRY"
         ],
-        "wet_reaches": 2,
-        "dry_reaches": 3,
-        "unobserved_reaches": 1,
-        "first_dry_reach": 4,
-        "last_wet_reach": 3,
-        "longest_dry_run": 3,
-        "continuous_to_last_wet": null,
+        "wet_reaches": 3,
+        "dry_reaches": 2,
+        "unobserved_reaches": 0,
+        "first_dry_reach": 1,
+        "last_wet_reach": 4,
+        "longest_dry_run": 1,
+        "continuous_to_last_wet": false,
         "wet_threshold": 0.15,
         "threshold_basis": "ARBITRARY: the wet-fraction cut-off decides where a break is reported and has no hydraulic meaning.",
         "reach_wet_fractions": [
-          0.42,
-          null,
-          0.42,
           0.03,
-          0.03,
+          0.42,
+          0.42,
+          0.42,
           0.03
         ],
         "interpretation": "Standing water detected per reach, head to tail. A break says water was not detected beyond that point in this window; it does not say why, and it does not describe movement of water.",
@@ -607,7 +609,9 @@
           "note": "25.0 m is about 2.5 pixels at 10 m. Radar water figures for this canal are meaningful.",
           "threshold_m": 20.0,
           "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
-        }
+        },
+        "pattern": "INTERMITTENT",
+        "water_reaches_to": null
       },
       "water_use_efficiency": {
         "status": "OK",
@@ -806,7 +810,9 @@
           "note": "8.0 m is below one 10 m pixel. Radar cannot resolve standing water in this canal at all; an absent water signal here is a statement about resolution, not about water.",
           "threshold_m": 20.0,
           "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
-        }
+        },
+        "pattern": "NO WATER DETECTED",
+        "water_reaches_to": null
       },
       "water_use_efficiency": {
         "status": "OK",
@@ -1005,7 +1011,9 @@
           "note": "30.0 m is about 3.0 pixels at 10 m. Radar water figures for this canal are meaningful.",
           "threshold_m": 20.0,
           "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
-        }
+        },
+        "pattern": "STOPS",
+        "water_reaches_to": 3
       },
       "water_use_efficiency": {
         "status": "OK",
@@ -1202,7 +1210,9 @@
           "note": "45.0 m is about 4.5 pixels at 10 m. Radar water figures for this canal are meaningful.",
           "threshold_m": 20.0,
           "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
-        }
+        },
+        "pattern": "CONTINUOUS",
+        "water_reaches_to": null
       },
       "water_use_efficiency": {
         "status": "OK",
@@ -1401,7 +1411,9 @@
           "note": "25.0 m is about 2.5 pixels at 10 m. Radar water figures for this canal are meaningful.",
           "threshold_m": 20.0,
           "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
-        }
+        },
+        "pattern": "STOPS",
+        "water_reaches_to": 3
       },
       "water_use_efficiency": {
         "status": "OK",
