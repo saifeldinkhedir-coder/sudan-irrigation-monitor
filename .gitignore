@@ -24,6 +24,10 @@ venv/
 
 # Engine output. Results are reproducible from the code plus geometry; the
 # checked-in sample under docs/ is the one deliberate exception.
+# Any engine output. The earlier rule was `results*.json`, which anchors at the
+# start of the name and therefore missed live_results.json - it was committed and
+# pushed before anyone noticed. Match the word anywhere in the name instead.
+*results*.json
+*_results.json
 irrigation_results.json
-results*.json
 !docs/sample_results.json
