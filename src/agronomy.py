@@ -47,7 +47,7 @@ WHAT THIS MODULE REFUSES TO DO
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Sequence
 
 import decision_logic as dl
@@ -90,6 +90,11 @@ MAX_ACCEPTABLE_YIELD_RMSE_FRACTION = 0.25   # of mean observed yield
 # a 16-day field-scale rainfall forecast would be a number with no information
 # in it. ARBITRARY, chosen to match what farm apps conventionally show.
 FORECAST_DAYS = 7
+
+# How far back to look for model runs. GFS in Earth Engine lags real time by
+# a variable amount, so a window of a couple of days finds the latest usable
+# run without scanning the archive. ARBITRARY.
+RECENT_RUNS_DAYS = 3
 
 _ERA5_DAILY = "ECMWF/ERA5_LAND/DAILY_AGGR"
 _GFS = "NOAA/GFS0P25"
@@ -399,13 +404,29 @@ def forecast_7day(aoi, days: int = FORECAST_DAYS, scale: int = 27830) -> dict:
     if ee is None:
         return {"status": "NOT AVAILABLE", "reason": "Earth Engine unavailable"}
     try:
+        # A DATE FILTER IS NOT OPTIONAL HERE.
+        # Measured on 2026-08-29: filtering NOA/GFS0P25 by bounds and
+        # forecast_hours alone leaves 228,058 images - the whole archive back to
+        # 2015 - and the reduction over them did not return in ten minutes,
+        # while every other stage in the engine took 3 to 10 seconds. A forecast
+        # is about the next few days, so only the most recent model runs can
+        # possibly be relevant, and scanning a decade of superseded forecasts to
+        # average them together would be wrong even if it were fast.
+        now = datetime.now(timezone.utc)
+        recent_start = (now - timedelta(days=RECENT_RUNS_DAYS)).strftime("%Y-%m-%d")
+        recent_end = (now + timedelta(days=days + 1)).strftime("%Y-%m-%d")
         col = (ee.ImageCollection(_GFS)
+               .filterDate(recent_start, recent_end)
                .filterBounds(aoi)
                .filter(ee.Filter.lt("forecast_hours", days * 24)))
         n = col.size().getInfo()
         if n == 0:
             return {"status": "NOT AVAILABLE",
-                    "reason": "no GFS forecast steps available for this area"}
+                    "reason": (f"no GFS forecast steps for this area in the last "
+                               f"{RECENT_RUNS_DAYS} days. GFS in Earth Engine "
+                               "lags real time, so a forecast is unavailable "
+                               "rather than stale."),
+                    "searched_from": recent_start}
 
         # GFS band sets are not uniform across images: a live check on
         # 2026-08-29 found images carrying 6 bands without
@@ -414,18 +435,28 @@ def forecast_7day(aoi, days: int = FORECAST_DAYS, scale: int = 27830) -> dict:
         # whole call, so each band is reduced independently and a band that is
         # absent produces None rather than taking the temperature down with it.
         def _mean_of(band):
-            try:
-                sub = col.select([band])
-                return sub.mean().reduceRegion(
-                    reducer=ee.Reducer.mean(), geometry=aoi, scale=scale,
-                    maxPixels=1e8, bestEffort=True).getInfo().get(band)
-            except Exception:
-                return None
+            """Reduce one band over only the steps that actually carry it.
 
-        stats = {"temperature_2m_above_ground":
-                 _mean_of("temperature_2m_above_ground"),
-                 "total_precipitation_surface":
-                 _mean_of("total_precipitation_surface")}
+            Filtering on system:band_names is the difference between recovering
+            the variable and losing it. An earlier version wrapped select() in a
+            try/except, which turned "14 of 2046 steps lack this band" into a
+            silent None for the whole forecast - discarding 2032 usable steps to
+            avoid 14 bad ones. Returns (value, n_steps) so the caller can say
+            how much of the forecast the number rests on.
+            """
+            sub = col.filter(ee.Filter.listContains("system:band_names", band))
+            n_band = sub.size().getInfo()
+            if n_band == 0:
+                return None, 0
+            v = sub.select([band]).mean().reduceRegion(
+                reducer=ee.Reducer.mean(), geometry=aoi, scale=scale,
+                maxPixels=1e8, bestEffort=True).getInfo().get(band)
+            return v, n_band
+
+        temp, n_temp = _mean_of("temperature_2m_above_ground")
+        precip, n_precip = _mean_of("total_precipitation_surface")
+        stats = {"temperature_2m_above_ground": temp,
+                 "total_precipitation_surface": precip}
 
         return {
             "status": "OK",
@@ -437,9 +468,12 @@ def forecast_7day(aoi, days: int = FORECAST_DAYS, scale: int = 27830) -> dict:
                 round(stats.get("total_precipitation_surface"), 2)
                 if stats.get("total_precipitation_surface") is not None else None),
             "forecast_steps": n,
+            "steps_with_temperature": n_temp,
+            "steps_with_precipitation": n_precip,
             "provenance": {
                 "sensor": "NOAA GFS 0.25 degree",
                 "scale_m": scale,
+                "searched_from": recent_start,
                 "note": ("A ~28 km global model. This is the outlook over the "
                          "scheme, not over a field. Rainfall is the least "
                          "skilful variable in it."),

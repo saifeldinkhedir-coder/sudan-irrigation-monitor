@@ -191,3 +191,31 @@ def test_the_gate_can_speak_about_another_quantity():
     g = dl.calibration_gate(5, 0.1, 30, 0.6, quantity="a yield figure")
     assert "yield" in g["reason"]
     assert "nitrogen" not in g["reason"]
+
+
+# --- the GFS archive guard ----------------------------------------------------
+#
+# Verified by live measurement, not by this test: filtering NOAA/GFS0P25 by
+# bounds and forecast_hours alone left 228,058 images and did not return in ten
+# minutes; adding the date filter brought it to 2,052 steps in 14.5 seconds.
+# A unit test cannot reproduce that, so what it CAN do is guard the constant
+# that makes the difference.
+
+class TestForecastWindow:
+    def test_the_run_window_stays_a_recent_window(self):
+        """
+        If this is ever widened to weeks or months, the call reverts to scanning
+        a decade of superseded model runs — slow, and wrong regardless of speed,
+        since averaging forecasts that have already been replaced is not a
+        forecast of anything.
+        """
+        assert 1 <= ag.RECENT_RUNS_DAYS <= 7
+
+    def test_the_horizon_stays_inside_useful_skill(self):
+        assert 1 <= ag.FORECAST_DAYS <= 10
+
+    def test_the_window_is_declared_arbitrary_in_the_source(self):
+        import inspect
+        src = inspect.getsource(ag)
+        i = src.index("RECENT_RUNS_DAYS = ")
+        assert "ARBITRARY" in src[max(0, i - 400):i]
