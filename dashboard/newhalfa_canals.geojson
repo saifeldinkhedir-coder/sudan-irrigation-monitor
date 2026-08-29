@@ -1,0 +1,294 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Minor Canal 1",
+    "office": "New Halfa Group A"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      35.65,
+      15.451
+     ],
+     [
+      35.67356,
+      15.43679
+     ],
+     [
+      35.69632,
+      15.42372
+     ],
+     [
+      35.71779,
+      15.41117
+     ],
+     [
+      35.73789,
+      15.3983
+     ],
+     [
+      35.75705,
+      15.3844
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Minor Canal 2",
+    "office": "New Halfa Group B"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      35.68,
+      15.406
+     ],
+     [
+      35.70283,
+      15.38219
+     ],
+     [
+      35.72487,
+      15.35952
+     ],
+     [
+      35.7456,
+      15.33737
+     ],
+     [
+      35.76498,
+      15.3149
+     ],
+     [
+      35.78341,
+      15.29139
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Minor Canal 3",
+    "office": "New Halfa Group C"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      35.71,
+      15.361
+     ],
+     [
+      35.73651,
+      15.3477
+     ],
+     [
+      35.76223,
+      15.33555
+     ],
+     [
+      35.78664,
+      15.32391
+     ],
+     [
+      35.8097,
+      15.31195
+     ],
+     [
+      35.83181,
+      15.29896
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Minor Canal 4",
+    "office": "New Halfa Group A"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      35.74,
+      15.316
+     ],
+     [
+      35.76176,
+      15.28885
+     ],
+     [
+      35.78273,
+      15.26285
+     ],
+     [
+      35.8024,
+      15.23736
+     ],
+     [
+      35.82071,
+      15.21154
+     ],
+     [
+      35.83807,
+      15.1847
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Minor Canal 5",
+    "office": "New Halfa Group B"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      35.77,
+      15.271
+     ],
+     [
+      35.79524,
+      15.25242
+     ],
+     [
+      35.81969,
+      15.23498
+     ],
+     [
+      35.84284,
+      15.21806
+     ],
+     [
+      35.86463,
+      15.20082
+     ],
+     [
+      35.88547,
+      15.18254
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Minor Canal 6",
+    "office": "New Halfa Group C"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      35.796,
+      15.232
+     ],
+     [
+      35.81026,
+      15.21191
+     ],
+     [
+      35.82373,
+      15.19298
+     ],
+     [
+      35.8359,
+      15.17455
+     ],
+     [
+      35.8467,
+      15.15581
+     ],
+     [
+      35.85656,
+      15.13604
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Minor Canal 7",
+    "office": "New Halfa Group A"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      35.81,
+      15.211
+     ],
+     [
+      35.83489,
+      15.18907
+     ],
+     [
+      35.85898,
+      15.1683
+     ],
+     [
+      35.88178,
+      15.14803
+     ],
+     [
+      35.90321,
+      15.12744
+     ],
+     [
+      35.9237,
+      15.10582
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Main Canal",
+    "office": "headworks",
+    "role": "main"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      35.62,
+      15.5
+     ],
+     [
+      35.66,
+      15.44
+     ],
+     [
+      35.7,
+      15.38
+     ],
+     [
+      35.74,
+      15.32
+     ],
+     [
+      35.78,
+      15.26
+     ],
+     [
+      35.82,
+      15.2
+     ]
+    ]
+   }
+  }
+ ]
+}

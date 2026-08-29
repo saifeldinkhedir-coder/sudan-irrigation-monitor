@@ -1,0 +1,7 @@
+earthengine-api>=0.1.380     # live runs only; not needed for tests or the mock
+numpy>=1.24                  # attribution statistics
+streamlit>=1.30             # manager dashboard
+pandas>=2.0                 # dashboard tables
+pytest>=7.0                 # tests
+# scipy is optional: if present, attribution uses exact t critical values;
+# if absent, it falls back to a built-in table (no functional difference for CIs).

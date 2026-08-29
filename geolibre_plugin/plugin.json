@@ -1,0 +1,52 @@
+{
+  "id": "sudan-irrigation-monitor",
+  "name": "Sudan Irrigation & Agriculture Monitor",
+  "version": "0.1.0",
+  "description": "Network + field irrigation monitoring for Sudanese schemes: canal water, head-to-tail equity, field condition, and two-way field collection that feeds the satellite/ground reliability figure.",
+  "author": "independent",
+  "geolibre_api": ">=0.1",
+  "capabilities": [
+    "map_layers",
+    "field_collection",
+    "earth_engine_panel"
+  ],
+  "map_layers": [
+    {
+      "id": "canals",
+      "title": "Canals",
+      "type": "geojson",
+      "source": "data/canals.geojson",
+      "style": {"line-color": "#1f77b4", "line-width": 2},
+      "popup_fields": ["name", "office"]
+    },
+    {
+      "id": "equity",
+      "title": "Head-to-tail equity",
+      "type": "geojson",
+      "source": "results/equity.geojson",
+      "style_by": {
+        "field": "flagged",
+        "categories": {
+          "true": {"line-color": "#d62728", "line-width": 4},
+          "false": {"line-color": "#7f7f7f", "line-width": 2}
+        }
+      },
+      "legend": "Red = flagged (95% lower bound of the gap exceeds the review threshold). Grey = not flagged. A gap is a measured difference and attributes nothing to anyone.",
+      "popup_fields": ["name", "head_tail_gap", "head_tail_gap_ci95", "gap_reliable"]
+    },
+    {
+      "id": "water_frequency",
+      "title": "Persistent water (for tracing canals)",
+      "type": "cog",
+      "source": "results/water_frequency.tif",
+      "opacity": 0.7,
+      "legend": "Fraction of observations each pixel read as water (Sentinel-1 + MNDWI). Trace canal centrelines over the bright, continuous lines."
+    }
+  ],
+  "field_collection_form": "forms/ground_observation.json",
+  "farmer_card_endpoint": "cards/{canal}/{reach}",
+  "notes": [
+    "This manifest targets the GeoLibre plugin API (opengeos/GeoLibre). The analysis engine (../src) is the original work; GeoLibre supplies the desktop/web/Android/iOS shell, offline area download, the Field Collection tool, and the Earth Engine panel.",
+    "results/*.geojson and results/water_frequency.tif are produced by the engine and geometry/build_water_frequency.py respectively; they are not checked in."
+  ]
+}

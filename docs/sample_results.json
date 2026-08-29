@@ -1,0 +1,1482 @@
+{
+  "tool": "Sudan Irrigation & Agriculture Monitor",
+  "generated_utc": "2026-08-29T04:54:12.001555+00:00",
+  "gee_project": "mock",
+  "season": {
+    "start": "2022-07-01",
+    "end": "2023-03-31"
+  },
+  "crop": "sorghum",
+  "command_geometry_supplied": true,
+  "sensors": {
+    "Sentinel-2": "10 m optical - vigour, moisture, irrigated extent",
+    "Sentinel-2 red-edge": "B5-B7 - chlorophyll indices for nutrition",
+    "Sentinel-1": "C-band radar - canal water, cloud-penetrating",
+    "Landsat 8/9 thermal": "100 m LST - direct water-stress measure",
+    "CHIRPS": "daily rainfall - separates drought from network failure",
+    "ERA5-Land": "temperature - growing-degree days, heat stress",
+    "MODIS MOD16": "500 m actual ET - command-scale water consumption",
+    "GRACE-FO": "~300 km storage anomaly - REGIONAL CONTEXT ONLY"
+  },
+  "canals": [
+    {
+      "name": "Minor Canal 1",
+      "command_area_provenance": {
+        "command_area_source": "REAL: matched by name property",
+        "matched_polygons": 1
+      },
+      "canal_water": {
+        "name": "canal_water",
+        "status": "OK",
+        "value": 0.437,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.15,
+        "threshold_basis": "ARBITRARY: hand-chosen wet-fraction cut-off",
+        "interpretation": "Fraction of the buffered canal footprint reading as water in radar. Wet-looking is not flowing, and a dry reading can also be a narrow canal under a 10 m pixel.",
+        "provenance": {
+          "sensor": "Sentinel-1 VV (IW, GRD)",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 5,
+          "scale_m": 10,
+          "threshold_basis": null,
+          "observed_fraction": 0.913,
+          "notes": ""
+        }
+      },
+      "head_tail_equity": {
+        "status": "OK",
+        "reaches": [
+          {
+            "reach": 1,
+            "position_along_canal": 0.0,
+            "mean_ndvi": 0.58
+          },
+          {
+            "reach": 2,
+            "position_along_canal": 0.2,
+            "mean_ndvi": 0.572
+          },
+          {
+            "reach": 3,
+            "position_along_canal": 0.4,
+            "mean_ndvi": 0.564
+          },
+          {
+            "reach": 4,
+            "position_along_canal": 0.6,
+            "mean_ndvi": 0.555
+          },
+          {
+            "reach": 5,
+            "position_along_canal": 0.8,
+            "mean_ndvi": 0.547
+          },
+          {
+            "reach": 6,
+            "position_along_canal": 1.0,
+            "mean_ndvi": 0.539
+          }
+        ],
+        "n_reaches_used": 5,
+        "provenance": {
+          "sensor": "Sentinel-2 median NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": "reach strip half-width is the ARBITRARY fallback command width; replace with real command polygons",
+          "observed_fraction": null,
+          "notes": ""
+        },
+        "interpretation": "Mean crop vigour in the strip served by each reach, head to tail, fitted as a line so the trend uses every reach and its uncertainty is stated. A gap is a measured difference in outcome; its causes (siltation, upstream abstraction, soil, crop choice, planting date) are not separated here and nothing is attributed to anyone.",
+        "head_fit_ndvi": 0.58,
+        "tail_fit_ndvi": 0.539,
+        "head_tail_gap": 0.07,
+        "head_tail_gap_ci95": [
+          -0.05,
+          0.19
+        ],
+        "slope": -0.05,
+        "fit_r2": 0.32,
+        "flagged": false,
+        "gap_reliable": true,
+        "flag_threshold": 0.2,
+        "flag_rule": "FLAGGED only when the 95% lower bound of the head-to-tail gap exceeds the threshold, so a flag means a gradient we are confident is real, not a noisy point estimate.",
+        "flag_basis": "ARBITRARY: the threshold controls how many canals a manager is asked to review and carries no regulatory meaning.",
+        "attribution_caveat": "A gap is a measured difference in outcome. Siltation, upstream abstraction, soil, crop choice and planting date can each cause it; this figure separates none of them and attributes nothing to any office, operator or decision."
+      },
+      "irrigated_extent": {
+        "name": "irrigated_extent",
+        "status": "OK",
+        "value": 0.4151,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.325,
+        "threshold_basis": "DERIVED: Otsu split of the NDVI histogram over this command area. `bimodality` is the depth of the valley between the two class peaks (0 = one hump, ~1 = two clean humps); when it is low the cropped and bare populations are not separable and the extent figure is weak and must be surfaced as such. The 0.5 cut is ARBITRARY.",
+        "interpretation": "Share of the command area above the Otsu cropped/bare split. Compare against the planned command area to see how much of the scheme was actually cropped. Trust it only when the bimodality in the provenance is high.",
+        "provenance": {
+          "sensor": "Sentinel-2 peak-season NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": null,
+          "observed_fraction": 0.85,
+          "notes": "Otsu separability 0.9102, valley-depth bimodality 0.9866. Clean cropped/bare split."
+        }
+      },
+      "seasonal_et_mm": 241.7,
+      "seasonal_rainfall_mm": 32.6,
+      "climate": {
+        "growing_degree_days": 921.6840716362195,
+        "gdd_base_c": 10.0,
+        "heat_stress_days": 21,
+        "heat_stress_threshold_c": 38.0,
+        "heat_stress_basis": "ARBITRARY: published crop figure, not a Sudanese trial",
+        "dry_spells": {
+          "longest_dry_spell_days": 0,
+          "flagged": false,
+          "threshold_days": 10,
+          "rain_floor_mm": 1.0,
+          "days_in_series": 0,
+          "basis": "ARBITRARY: hand-chosen dry-spell length and rain floor"
+        },
+        "season_vs_history": null,
+        "sources": {
+          "temperature": "ERA5-Land daily aggregates",
+          "rainfall": "CHIRPS daily"
+        }
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 2.166210818608806,
+          "MTCI": 2.0512299669327283,
+          "NDRE": 0.5720840498274388,
+          "S2REP": 711.6686571044075
+        },
+        "relative_condition": "WITHIN SCHEME NORM",
+        "percentile_in_scheme": 50.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      }
+    },
+    {
+      "name": "Minor Canal 2",
+      "command_area_provenance": {
+        "command_area_source": "REAL: matched by name property",
+        "matched_polygons": 1
+      },
+      "canal_water": {
+        "name": "canal_water",
+        "status": "OK",
+        "value": 0.0381,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.15,
+        "threshold_basis": "ARBITRARY: hand-chosen wet-fraction cut-off",
+        "interpretation": "Fraction of the buffered canal footprint reading as water in radar. Wet-looking is not flowing, and a dry reading can also be a narrow canal under a 10 m pixel.",
+        "provenance": {
+          "sensor": "Sentinel-1 VV (IW, GRD)",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 5,
+          "scale_m": 10,
+          "threshold_basis": null,
+          "observed_fraction": 0.827,
+          "notes": ""
+        }
+      },
+      "head_tail_equity": {
+        "status": "OK",
+        "reaches": [
+          {
+            "reach": 1,
+            "position_along_canal": 0.0,
+            "mean_ndvi": 0.62
+          },
+          {
+            "reach": 2,
+            "position_along_canal": 0.2,
+            "mean_ndvi": 0.6
+          },
+          {
+            "reach": 3,
+            "position_along_canal": 0.4,
+            "mean_ndvi": 0.58
+          },
+          {
+            "reach": 4,
+            "position_along_canal": 0.6,
+            "mean_ndvi": 0.561
+          },
+          {
+            "reach": 5,
+            "position_along_canal": 0.8,
+            "mean_ndvi": 0.541
+          },
+          {
+            "reach": 6,
+            "position_along_canal": 1.0,
+            "mean_ndvi": 0.521
+          }
+        ],
+        "n_reaches_used": 5,
+        "provenance": {
+          "sensor": "Sentinel-2 median NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": "reach strip half-width is the ARBITRARY fallback command width; replace with real command polygons",
+          "observed_fraction": null,
+          "notes": ""
+        },
+        "interpretation": "Mean crop vigour in the strip served by each reach, head to tail, fitted as a line so the trend uses every reach and its uncertainty is stated. A gap is a measured difference in outcome; its causes (siltation, upstream abstraction, soil, crop choice, planting date) are not separated here and nothing is attributed to anyone.",
+        "head_fit_ndvi": 0.62,
+        "tail_fit_ndvi": 0.521,
+        "head_tail_gap": 0.16,
+        "head_tail_gap_ci95": [
+          0.02,
+          0.3
+        ],
+        "slope": -0.1,
+        "fit_r2": 0.55,
+        "flagged": false,
+        "gap_reliable": true,
+        "flag_threshold": 0.2,
+        "flag_rule": "FLAGGED only when the 95% lower bound of the head-to-tail gap exceeds the threshold, so a flag means a gradient we are confident is real, not a noisy point estimate.",
+        "flag_basis": "ARBITRARY: the threshold controls how many canals a manager is asked to review and carries no regulatory meaning.",
+        "attribution_caveat": "A gap is a measured difference in outcome. Siltation, upstream abstraction, soil, crop choice and planting date can each cause it; this figure separates none of them and attributes nothing to any office, operator or decision."
+      },
+      "irrigated_extent": {
+        "name": "irrigated_extent",
+        "status": "OK",
+        "value": 0.4151,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.325,
+        "threshold_basis": "DERIVED: Otsu split of the NDVI histogram over this command area. `bimodality` is the depth of the valley between the two class peaks (0 = one hump, ~1 = two clean humps); when it is low the cropped and bare populations are not separable and the extent figure is weak and must be surfaced as such. The 0.5 cut is ARBITRARY.",
+        "interpretation": "Share of the command area above the Otsu cropped/bare split. Compare against the planned command area to see how much of the scheme was actually cropped. Trust it only when the bimodality in the provenance is high.",
+        "provenance": {
+          "sensor": "Sentinel-2 peak-season NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": null,
+          "observed_fraction": 0.85,
+          "notes": "Otsu separability 0.9102, valley-depth bimodality 0.9866. Clean cropped/bare split."
+        }
+      },
+      "seasonal_et_mm": 241.7,
+      "seasonal_rainfall_mm": 32.6,
+      "climate": {
+        "growing_degree_days": 921.6840716362195,
+        "gdd_base_c": 10.0,
+        "heat_stress_days": 21,
+        "heat_stress_threshold_c": 38.0,
+        "heat_stress_basis": "ARBITRARY: published crop figure, not a Sudanese trial",
+        "dry_spells": {
+          "longest_dry_spell_days": 0,
+          "flagged": false,
+          "threshold_days": 10,
+          "rain_floor_mm": 1.0,
+          "days_in_series": 0,
+          "basis": "ARBITRARY: hand-chosen dry-spell length and rain floor"
+        },
+        "season_vs_history": null,
+        "sources": {
+          "temperature": "ERA5-Land daily aggregates",
+          "rainfall": "CHIRPS daily"
+        }
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 2.166210818608806,
+          "MTCI": 2.0512299669327283,
+          "NDRE": 0.5720840498274388,
+          "S2REP": 711.6686571044075
+        },
+        "relative_condition": "WITHIN SCHEME NORM",
+        "percentile_in_scheme": 50.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      }
+    },
+    {
+      "name": "Minor Canal 3",
+      "command_area_provenance": {
+        "command_area_source": "REAL: matched by name property",
+        "matched_polygons": 1
+      },
+      "canal_water": {
+        "name": "canal_water",
+        "status": "OK",
+        "value": 0.3444,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.15,
+        "threshold_basis": "ARBITRARY: hand-chosen wet-fraction cut-off",
+        "interpretation": "Fraction of the buffered canal footprint reading as water in radar. Wet-looking is not flowing, and a dry reading can also be a narrow canal under a 10 m pixel.",
+        "provenance": {
+          "sensor": "Sentinel-1 VV (IW, GRD)",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 5,
+          "scale_m": 10,
+          "threshold_basis": null,
+          "observed_fraction": 0.995,
+          "notes": ""
+        }
+      },
+      "head_tail_equity": {
+        "status": "OK",
+        "reaches": [
+          {
+            "reach": 1,
+            "position_along_canal": 0.0,
+            "mean_ndvi": 0.71
+          },
+          {
+            "reach": 2,
+            "position_along_canal": 0.2,
+            "mean_ndvi": 0.656
+          },
+          {
+            "reach": 3,
+            "position_along_canal": 0.4,
+            "mean_ndvi": 0.602
+          },
+          {
+            "reach": 4,
+            "position_along_canal": 0.6,
+            "mean_ndvi": 0.548
+          },
+          {
+            "reach": 5,
+            "position_along_canal": 0.8,
+            "mean_ndvi": 0.494
+          },
+          {
+            "reach": 6,
+            "position_along_canal": 1.0,
+            "mean_ndvi": 0.44
+          }
+        ],
+        "n_reaches_used": 5,
+        "provenance": {
+          "sensor": "Sentinel-2 median NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": "reach strip half-width is the ARBITRARY fallback command width; replace with real command polygons",
+          "observed_fraction": null,
+          "notes": ""
+        },
+        "interpretation": "Mean crop vigour in the strip served by each reach, head to tail, fitted as a line so the trend uses every reach and its uncertainty is stated. A gap is a measured difference in outcome; its causes (siltation, upstream abstraction, soil, crop choice, planting date) are not separated here and nothing is attributed to anyone.",
+        "head_fit_ndvi": 0.71,
+        "tail_fit_ndvi": 0.44,
+        "head_tail_gap": 0.38,
+        "head_tail_gap_ci95": [
+          0.26,
+          0.49
+        ],
+        "slope": -0.27,
+        "fit_r2": 0.88,
+        "flagged": true,
+        "gap_reliable": true,
+        "flag_threshold": 0.2,
+        "flag_rule": "FLAGGED only when the 95% lower bound of the head-to-tail gap exceeds the threshold, so a flag means a gradient we are confident is real, not a noisy point estimate.",
+        "flag_basis": "ARBITRARY: the threshold controls how many canals a manager is asked to review and carries no regulatory meaning.",
+        "attribution_caveat": "A gap is a measured difference in outcome. Siltation, upstream abstraction, soil, crop choice and planting date can each cause it; this figure separates none of them and attributes nothing to any office, operator or decision."
+      },
+      "irrigated_extent": {
+        "name": "irrigated_extent",
+        "status": "OK",
+        "value": 0.4151,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.325,
+        "threshold_basis": "DERIVED: Otsu split of the NDVI histogram over this command area. `bimodality` is the depth of the valley between the two class peaks (0 = one hump, ~1 = two clean humps); when it is low the cropped and bare populations are not separable and the extent figure is weak and must be surfaced as such. The 0.5 cut is ARBITRARY.",
+        "interpretation": "Share of the command area above the Otsu cropped/bare split. Compare against the planned command area to see how much of the scheme was actually cropped. Trust it only when the bimodality in the provenance is high.",
+        "provenance": {
+          "sensor": "Sentinel-2 peak-season NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": null,
+          "observed_fraction": 0.85,
+          "notes": "Otsu separability 0.9102, valley-depth bimodality 0.9866. Clean cropped/bare split."
+        }
+      },
+      "seasonal_et_mm": 241.7,
+      "seasonal_rainfall_mm": 32.6,
+      "climate": {
+        "growing_degree_days": 921.6840716362195,
+        "gdd_base_c": 10.0,
+        "heat_stress_days": 21,
+        "heat_stress_threshold_c": 38.0,
+        "heat_stress_basis": "ARBITRARY: published crop figure, not a Sudanese trial",
+        "dry_spells": {
+          "longest_dry_spell_days": 0,
+          "flagged": false,
+          "threshold_days": 10,
+          "rain_floor_mm": 1.0,
+          "days_in_series": 0,
+          "basis": "ARBITRARY: hand-chosen dry-spell length and rain floor"
+        },
+        "season_vs_history": null,
+        "sources": {
+          "temperature": "ERA5-Land daily aggregates",
+          "rainfall": "CHIRPS daily"
+        }
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 2.166210818608806,
+          "MTCI": 2.0512299669327283,
+          "NDRE": 0.5720840498274388,
+          "S2REP": 711.6686571044075
+        },
+        "relative_condition": "WITHIN SCHEME NORM",
+        "percentile_in_scheme": 50.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      }
+    },
+    {
+      "name": "Minor Canal 4",
+      "command_area_provenance": {
+        "command_area_source": "REAL: matched by name property",
+        "matched_polygons": 1
+      },
+      "canal_water": {
+        "name": "canal_water",
+        "status": "OK",
+        "value": 0.108,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.15,
+        "threshold_basis": "ARBITRARY: hand-chosen wet-fraction cut-off",
+        "interpretation": "Fraction of the buffered canal footprint reading as water in radar. Wet-looking is not flowing, and a dry reading can also be a narrow canal under a 10 m pixel.",
+        "provenance": {
+          "sensor": "Sentinel-1 VV (IW, GRD)",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 5,
+          "scale_m": 10,
+          "threshold_basis": null,
+          "observed_fraction": 0.824,
+          "notes": ""
+        }
+      },
+      "head_tail_equity": {
+        "status": "OK",
+        "reaches": [
+          {
+            "reach": 1,
+            "position_along_canal": 0.0,
+            "mean_ndvi": 0.66
+          },
+          {
+            "reach": 2,
+            "position_along_canal": 0.2,
+            "mean_ndvi": 0.653
+          },
+          {
+            "reach": 3,
+            "position_along_canal": 0.4,
+            "mean_ndvi": 0.647
+          },
+          {
+            "reach": 4,
+            "position_along_canal": 0.6,
+            "mean_ndvi": 0.64
+          },
+          {
+            "reach": 5,
+            "position_along_canal": 0.8,
+            "mean_ndvi": 0.634
+          },
+          {
+            "reach": 6,
+            "position_along_canal": 1.0,
+            "mean_ndvi": 0.627
+          }
+        ],
+        "n_reaches_used": 5,
+        "provenance": {
+          "sensor": "Sentinel-2 median NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": "reach strip half-width is the ARBITRARY fallback command width; replace with real command polygons",
+          "observed_fraction": null,
+          "notes": ""
+        },
+        "interpretation": "Mean crop vigour in the strip served by each reach, head to tail, fitted as a line so the trend uses every reach and its uncertainty is stated. A gap is a measured difference in outcome; its causes (siltation, upstream abstraction, soil, crop choice, planting date) are not separated here and nothing is attributed to anyone.",
+        "head_fit_ndvi": 0.66,
+        "tail_fit_ndvi": 0.627,
+        "head_tail_gap": 0.05,
+        "head_tail_gap_ci95": [
+          -0.08,
+          0.18
+        ],
+        "slope": -0.04,
+        "fit_r2": 0.21,
+        "flagged": false,
+        "gap_reliable": true,
+        "flag_threshold": 0.2,
+        "flag_rule": "FLAGGED only when the 95% lower bound of the head-to-tail gap exceeds the threshold, so a flag means a gradient we are confident is real, not a noisy point estimate.",
+        "flag_basis": "ARBITRARY: the threshold controls how many canals a manager is asked to review and carries no regulatory meaning.",
+        "attribution_caveat": "A gap is a measured difference in outcome. Siltation, upstream abstraction, soil, crop choice and planting date can each cause it; this figure separates none of them and attributes nothing to any office, operator or decision."
+      },
+      "irrigated_extent": {
+        "name": "irrigated_extent",
+        "status": "OK",
+        "value": 0.4151,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.325,
+        "threshold_basis": "DERIVED: Otsu split of the NDVI histogram over this command area. `bimodality` is the depth of the valley between the two class peaks (0 = one hump, ~1 = two clean humps); when it is low the cropped and bare populations are not separable and the extent figure is weak and must be surfaced as such. The 0.5 cut is ARBITRARY.",
+        "interpretation": "Share of the command area above the Otsu cropped/bare split. Compare against the planned command area to see how much of the scheme was actually cropped. Trust it only when the bimodality in the provenance is high.",
+        "provenance": {
+          "sensor": "Sentinel-2 peak-season NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": null,
+          "observed_fraction": 0.85,
+          "notes": "Otsu separability 0.9102, valley-depth bimodality 0.9866. Clean cropped/bare split."
+        }
+      },
+      "seasonal_et_mm": 241.7,
+      "seasonal_rainfall_mm": 32.6,
+      "climate": {
+        "growing_degree_days": 921.6840716362195,
+        "gdd_base_c": 10.0,
+        "heat_stress_days": 21,
+        "heat_stress_threshold_c": 38.0,
+        "heat_stress_basis": "ARBITRARY: published crop figure, not a Sudanese trial",
+        "dry_spells": {
+          "longest_dry_spell_days": 0,
+          "flagged": false,
+          "threshold_days": 10,
+          "rain_floor_mm": 1.0,
+          "days_in_series": 0,
+          "basis": "ARBITRARY: hand-chosen dry-spell length and rain floor"
+        },
+        "season_vs_history": null,
+        "sources": {
+          "temperature": "ERA5-Land daily aggregates",
+          "rainfall": "CHIRPS daily"
+        }
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 2.166210818608806,
+          "MTCI": 2.0512299669327283,
+          "NDRE": 0.5720840498274388,
+          "S2REP": 711.6686571044075
+        },
+        "relative_condition": "WITHIN SCHEME NORM",
+        "percentile_in_scheme": 50.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      }
+    },
+    {
+      "name": "Minor Canal 5",
+      "command_area_provenance": {
+        "command_area_source": "REAL: matched by name property",
+        "matched_polygons": 1
+      },
+      "canal_water": {
+        "name": "canal_water",
+        "status": "NOT AVAILABLE",
+        "value": null,
+        "unit": "",
+        "reason": "only 1 Sentinel-1 scene; 2 needed",
+        "threshold": null,
+        "threshold_basis": null,
+        "interpretation": "",
+        "provenance": {
+          "sensor": "Sentinel-1 VV (IW, GRD)",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 1,
+          "scale_m": 10,
+          "threshold_basis": null,
+          "observed_fraction": null,
+          "notes": ""
+        }
+      },
+      "head_tail_equity": {
+        "status": "OK",
+        "reaches": [
+          {
+            "reach": 1,
+            "position_along_canal": 0.0,
+            "mean_ndvi": 0.6
+          },
+          {
+            "reach": 2,
+            "position_along_canal": 0.2,
+            "mean_ndvi": 0.602
+          },
+          {
+            "reach": 3,
+            "position_along_canal": 0.4,
+            "mean_ndvi": 0.605
+          },
+          {
+            "reach": 4,
+            "position_along_canal": 0.6,
+            "mean_ndvi": 0.607
+          },
+          {
+            "reach": 5,
+            "position_along_canal": 0.8,
+            "mean_ndvi": 0.61
+          },
+          {
+            "reach": 6,
+            "position_along_canal": 1.0,
+            "mean_ndvi": 0.612
+          }
+        ],
+        "n_reaches_used": 5,
+        "provenance": {
+          "sensor": "Sentinel-2 median NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": "reach strip half-width is the ARBITRARY fallback command width; replace with real command polygons",
+          "observed_fraction": null,
+          "notes": ""
+        },
+        "interpretation": "Mean crop vigour in the strip served by each reach, head to tail, fitted as a line so the trend uses every reach and its uncertainty is stated. A gap is a measured difference in outcome; its causes (siltation, upstream abstraction, soil, crop choice, planting date) are not separated here and nothing is attributed to anyone.",
+        "head_fit_ndvi": 0.6,
+        "tail_fit_ndvi": 0.612,
+        "head_tail_gap": -0.02,
+        "head_tail_gap_ci95": [
+          -0.2,
+          0.16
+        ],
+        "slope": 0.01,
+        "fit_r2": 0.15,
+        "flagged": false,
+        "gap_reliable": true,
+        "flag_threshold": 0.2,
+        "flag_rule": "FLAGGED only when the 95% lower bound of the head-to-tail gap exceeds the threshold, so a flag means a gradient we are confident is real, not a noisy point estimate.",
+        "flag_basis": "ARBITRARY: the threshold controls how many canals a manager is asked to review and carries no regulatory meaning.",
+        "attribution_caveat": "A gap is a measured difference in outcome. Siltation, upstream abstraction, soil, crop choice and planting date can each cause it; this figure separates none of them and attributes nothing to any office, operator or decision."
+      },
+      "irrigated_extent": {
+        "name": "irrigated_extent",
+        "status": "OK",
+        "value": 0.4151,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.325,
+        "threshold_basis": "DERIVED: Otsu split of the NDVI histogram over this command area. `bimodality` is the depth of the valley between the two class peaks (0 = one hump, ~1 = two clean humps); when it is low the cropped and bare populations are not separable and the extent figure is weak and must be surfaced as such. The 0.5 cut is ARBITRARY.",
+        "interpretation": "Share of the command area above the Otsu cropped/bare split. Compare against the planned command area to see how much of the scheme was actually cropped. Trust it only when the bimodality in the provenance is high.",
+        "provenance": {
+          "sensor": "Sentinel-2 peak-season NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": null,
+          "observed_fraction": 0.85,
+          "notes": "Otsu separability 0.9102, valley-depth bimodality 0.9866. Clean cropped/bare split."
+        }
+      },
+      "seasonal_et_mm": 241.7,
+      "seasonal_rainfall_mm": 32.6,
+      "climate": {
+        "growing_degree_days": 921.6840716362195,
+        "gdd_base_c": 10.0,
+        "heat_stress_days": 21,
+        "heat_stress_threshold_c": 38.0,
+        "heat_stress_basis": "ARBITRARY: published crop figure, not a Sudanese trial",
+        "dry_spells": {
+          "longest_dry_spell_days": 0,
+          "flagged": false,
+          "threshold_days": 10,
+          "rain_floor_mm": 1.0,
+          "days_in_series": 0,
+          "basis": "ARBITRARY: hand-chosen dry-spell length and rain floor"
+        },
+        "season_vs_history": null,
+        "sources": {
+          "temperature": "ERA5-Land daily aggregates",
+          "rainfall": "CHIRPS daily"
+        }
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 2.166210818608806,
+          "MTCI": 2.0512299669327283,
+          "NDRE": 0.5720840498274388,
+          "S2REP": 711.6686571044075
+        },
+        "relative_condition": "WITHIN SCHEME NORM",
+        "percentile_in_scheme": 50.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      }
+    },
+    {
+      "name": "Minor Canal 6",
+      "command_area_provenance": {
+        "command_area_source": "REAL: matched by name property",
+        "matched_polygons": 1
+      },
+      "canal_water": {
+        "name": "canal_water",
+        "status": "OK",
+        "value": 0.0854,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.15,
+        "threshold_basis": "ARBITRARY: hand-chosen wet-fraction cut-off",
+        "interpretation": "Fraction of the buffered canal footprint reading as water in radar. Wet-looking is not flowing, and a dry reading can also be a narrow canal under a 10 m pixel.",
+        "provenance": {
+          "sensor": "Sentinel-1 VV (IW, GRD)",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 5,
+          "scale_m": 10,
+          "threshold_basis": null,
+          "observed_fraction": 0.761,
+          "notes": ""
+        }
+      },
+      "head_tail_equity": {
+        "status": "OK",
+        "reaches": [
+          {
+            "reach": 1,
+            "position_along_canal": 0.0,
+            "mean_ndvi": 0.06
+          },
+          {
+            "reach": 2,
+            "position_along_canal": 0.2,
+            "mean_ndvi": 0.066
+          },
+          {
+            "reach": 3,
+            "position_along_canal": 0.4,
+            "mean_ndvi": 0.072
+          },
+          {
+            "reach": 4,
+            "position_along_canal": 0.6,
+            "mean_ndvi": 0.078
+          },
+          {
+            "reach": 5,
+            "position_along_canal": 0.8,
+            "mean_ndvi": 0.084
+          },
+          {
+            "reach": 6,
+            "position_along_canal": 1.0,
+            "mean_ndvi": 0.09
+          }
+        ],
+        "n_reaches_used": 5,
+        "provenance": {
+          "sensor": "Sentinel-2 median NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": "reach strip half-width is the ARBITRARY fallback command width; replace with real command polygons",
+          "observed_fraction": null,
+          "notes": ""
+        },
+        "interpretation": "Mean crop vigour in the strip served by each reach, head to tail, fitted as a line so the trend uses every reach and its uncertainty is stated. A gap is a measured difference in outcome; its causes (siltation, upstream abstraction, soil, crop choice, planting date) are not separated here and nothing is attributed to anyone.",
+        "head_fit_ndvi": 0.06,
+        "tail_fit_ndvi": 0.09,
+        "head_tail_gap": -0.5,
+        "head_tail_gap_ci95": null,
+        "slope": 0.03,
+        "fit_r2": 0.2,
+        "flagged": false,
+        "gap_reliable": false,
+        "flag_threshold": 0.2,
+        "flag_rule": "FLAGGED only when the 95% lower bound of the head-to-tail gap exceeds the threshold, so a flag means a gradient we are confident is real, not a noisy point estimate.",
+        "flag_basis": "ARBITRARY: the threshold controls how many canals a manager is asked to review and carries no regulatory meaning.",
+        "attribution_caveat": "A gap is a measured difference in outcome. Siltation, upstream abstraction, soil, crop choice and planting date can each cause it; this figure separates none of them and attributes nothing to any office, operator or decision.",
+        "reason": "fitted head vigour 0.06 below the 0.1 NDVI floor; ratio unreliable, not flagged"
+      },
+      "irrigated_extent": {
+        "name": "irrigated_extent",
+        "status": "OK",
+        "value": 0.31,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.325,
+        "threshold_basis": "DERIVED: Otsu split of the NDVI histogram over this command area. `bimodality` is the depth of the valley between the two class peaks (0 = one hump, ~1 = two clean humps); when it is low the cropped and bare populations are not separable and the extent figure is weak and must be surfaced as such. The 0.5 cut is ARBITRARY.",
+        "interpretation": "Share of the command area above the Otsu cropped/bare split. Compare against the planned command area to see how much of the scheme was actually cropped. Trust it only when the bimodality in the provenance is high.",
+        "provenance": {
+          "sensor": "Sentinel-2 peak-season NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": null,
+          "observed_fraction": 0.85,
+          "notes": "Otsu separability 0.58, valley-depth bimodality 0.19. WEAK SPLIT: near-unimodal, extent unreliable."
+        }
+      },
+      "seasonal_et_mm": 241.7,
+      "seasonal_rainfall_mm": 32.6,
+      "climate": {
+        "growing_degree_days": 921.6840716362195,
+        "gdd_base_c": 10.0,
+        "heat_stress_days": 21,
+        "heat_stress_threshold_c": 38.0,
+        "heat_stress_basis": "ARBITRARY: published crop figure, not a Sudanese trial",
+        "dry_spells": {
+          "longest_dry_spell_days": 0,
+          "flagged": false,
+          "threshold_days": 10,
+          "rain_floor_mm": 1.0,
+          "days_in_series": 0,
+          "basis": "ARBITRARY: hand-chosen dry-spell length and rain floor"
+        },
+        "season_vs_history": null,
+        "sources": {
+          "temperature": "ERA5-Land daily aggregates",
+          "rainfall": "CHIRPS daily"
+        }
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 2.166210818608806,
+          "MTCI": 2.0512299669327283,
+          "NDRE": 0.5720840498274388,
+          "S2REP": 711.6686571044075
+        },
+        "relative_condition": "WITHIN SCHEME NORM",
+        "percentile_in_scheme": 50.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      }
+    },
+    {
+      "name": "Minor Canal 7",
+      "command_area_provenance": {
+        "command_area_source": "REAL: matched by name property",
+        "matched_polygons": 1
+      },
+      "canal_water": {
+        "name": "canal_water",
+        "status": "OK",
+        "value": 0.2899,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.15,
+        "threshold_basis": "ARBITRARY: hand-chosen wet-fraction cut-off",
+        "interpretation": "Fraction of the buffered canal footprint reading as water in radar. Wet-looking is not flowing, and a dry reading can also be a narrow canal under a 10 m pixel.",
+        "provenance": {
+          "sensor": "Sentinel-1 VV (IW, GRD)",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 5,
+          "scale_m": 10,
+          "threshold_basis": null,
+          "observed_fraction": 0.954,
+          "notes": ""
+        }
+      },
+      "head_tail_equity": {
+        "status": "OK",
+        "reaches": [
+          {
+            "reach": 1,
+            "position_along_canal": 0.0,
+            "mean_ndvi": 0.64
+          },
+          {
+            "reach": 2,
+            "position_along_canal": 0.2,
+            "mean_ndvi": 0.584
+          },
+          {
+            "reach": 3,
+            "position_along_canal": 0.4,
+            "mean_ndvi": 0.527
+          },
+          {
+            "reach": 4,
+            "position_along_canal": 0.6,
+            "mean_ndvi": 0.471
+          },
+          {
+            "reach": 5,
+            "position_along_canal": 0.8,
+            "mean_ndvi": 0.414
+          },
+          {
+            "reach": 6,
+            "position_along_canal": 1.0,
+            "mean_ndvi": 0.358
+          }
+        ],
+        "n_reaches_used": 5,
+        "provenance": {
+          "sensor": "Sentinel-2 median NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": "reach strip half-width is the ARBITRARY fallback command width; replace with real command polygons",
+          "observed_fraction": null,
+          "notes": ""
+        },
+        "interpretation": "Mean crop vigour in the strip served by each reach, head to tail, fitted as a line so the trend uses every reach and its uncertainty is stated. A gap is a measured difference in outcome; its causes (siltation, upstream abstraction, soil, crop choice, planting date) are not separated here and nothing is attributed to anyone.",
+        "head_fit_ndvi": 0.64,
+        "tail_fit_ndvi": 0.358,
+        "head_tail_gap": 0.44,
+        "head_tail_gap_ci95": [
+          0.31,
+          0.56
+        ],
+        "slope": -0.3,
+        "fit_r2": 0.9,
+        "flagged": true,
+        "gap_reliable": true,
+        "flag_threshold": 0.2,
+        "flag_rule": "FLAGGED only when the 95% lower bound of the head-to-tail gap exceeds the threshold, so a flag means a gradient we are confident is real, not a noisy point estimate.",
+        "flag_basis": "ARBITRARY: the threshold controls how many canals a manager is asked to review and carries no regulatory meaning.",
+        "attribution_caveat": "A gap is a measured difference in outcome. Siltation, upstream abstraction, soil, crop choice and planting date can each cause it; this figure separates none of them and attributes nothing to any office, operator or decision."
+      },
+      "irrigated_extent": {
+        "name": "irrigated_extent",
+        "status": "OK",
+        "value": 0.4151,
+        "unit": "fraction",
+        "reason": null,
+        "threshold": 0.325,
+        "threshold_basis": "DERIVED: Otsu split of the NDVI histogram over this command area. `bimodality` is the depth of the valley between the two class peaks (0 = one hump, ~1 = two clean humps); when it is low the cropped and bare populations are not separable and the extent figure is weak and must be surfaced as such. The 0.5 cut is ARBITRARY.",
+        "interpretation": "Share of the command area above the Otsu cropped/bare split. Compare against the planned command area to see how much of the scheme was actually cropped. Trust it only when the bimodality in the provenance is high.",
+        "provenance": {
+          "sensor": "Sentinel-2 peak-season NDVI",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "n_scenes": 8,
+          "scale_m": 20,
+          "threshold_basis": null,
+          "observed_fraction": 0.85,
+          "notes": "Otsu separability 0.9102, valley-depth bimodality 0.9866. Clean cropped/bare split."
+        }
+      },
+      "seasonal_et_mm": 241.7,
+      "seasonal_rainfall_mm": 32.6,
+      "climate": {
+        "growing_degree_days": 921.6840716362195,
+        "gdd_base_c": 10.0,
+        "heat_stress_days": 21,
+        "heat_stress_threshold_c": 38.0,
+        "heat_stress_basis": "ARBITRARY: published crop figure, not a Sudanese trial",
+        "dry_spells": {
+          "longest_dry_spell_days": 0,
+          "flagged": false,
+          "threshold_days": 10,
+          "rain_floor_mm": 1.0,
+          "days_in_series": 0,
+          "basis": "ARBITRARY: hand-chosen dry-spell length and rain floor"
+        },
+        "season_vs_history": null,
+        "sources": {
+          "temperature": "ERA5-Land daily aggregates",
+          "rainfall": "CHIRPS daily"
+        }
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 2.166210818608806,
+          "MTCI": 2.0512299669327283,
+          "NDRE": 0.5720840498274388,
+          "S2REP": 711.6686571044075
+        },
+        "relative_condition": "WITHIN SCHEME NORM",
+        "percentile_in_scheme": 50.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      }
+    }
+  ],
+  "regional_context": {
+    "grace_lwe_cm": -3.76,
+    "note": "GRACE-FO footprint is roughly 300 km. This describes the region and says nothing about any canal or field."
+  },
+  "limitations": [
+    "Every figure describes measured surface condition. None of it is attributed to any office, operator or decision.",
+    "A head-to-tail gap has many possible causes - siltation, upstream abstraction, soil, crop choice, planting date. This engine separates none of them.",
+    "The head-to-tail gap is signed, and nothing in a LineString records which end the water enters. Direction comes from a 'vertex_order' property or an 'offtake' coordinate; with neither, vertex order is ASSUMED and the gap's sign is unverified.",
+    "Radar shows standing water, not flow.",
+    "Canals narrower than about 20 m are below reliable detection at 10 m radar resolution.",
+    "Thermal is 100 m and 16-day: a large-field and canal-command measure, not a smallholding one.",
+    "GRACE-FO cannot see a canal or a field; reported as regional context only.",
+    "An absolute nitrogen figure is reported ONLY where a calibrated model exists for the crop and its RMSE is within limit; otherwise only a relative condition is given. Yield is refused on the same terms and for the same reason.",
+    "Crop water requirement is what the crop NEEDED. Nothing in this engine measures what any field RECEIVED, and the two must never be read as the same number.",
+    "ET0 is computed from ERA5-Land at about 11 km. It is a command- and scheme-scale figure, not a field-scale one.",
+    "The 7-day outlook is NOAA GFS at about 28 km: the weather over the scheme, not over a field. No alert is raised from it.",
+    "Rangeland and corridor figures describe vegetation and surface water only. They say nothing about who may use land, and are not evidence of any claim by any party."
+  ],
+  "note": "عيّنة توضيحية — الهندسة والقيم تمثيلية (backend وهمي) لعرض الواجهة، وليست قياسات. استبدلها بتشغيل المحرك على هندسة حقيقية عبر EE_PROJECT.",
+  "fields": [
+    {
+      "name": "Field 1",
+      "properties": {
+        "name": "Field 1"
+      },
+      "reference_provenance": {
+        "reference_source": "REAL: command area containing the field",
+        "reference_name": "Minor Canal 1",
+        "field_area_m2": 190705,
+        "reference_area_m2": 66163625,
+        "area_ratio": 346.94,
+        "area_ratio_basis": "ARBITRARY: 10.0x. The defensible value depends on how many independent fields the reference contains.",
+        "verdict_withheld": false
+      },
+      "condition": {
+        "indicators": {
+          "vigour": {
+            "name": "vigour",
+            "status": "OK",
+            "value": 0.4083,
+            "unit": "",
+            "reason": null,
+            "threshold": 0.048,
+            "threshold_basis": "DERIVED: median +/- 2 * robust_sigma over the reference distribution passed to this call, computed per run, not fixed in advance",
+            "interpretation": "Mean crop vigour over the window.",
+            "provenance": {
+              "sensor": "Sentinel-2 median",
+              "date_start": "2022-07-01",
+              "date_end": "2023-03-31",
+              "n_scenes": 8,
+              "scale_m": 10,
+              "threshold_basis": "DERIVED: median +/- 2 * robust_sigma over the reference distribution passed to this call, computed per run, not fixed in advance",
+              "observed_fraction": 0.84,
+              "notes": ""
+            }
+          },
+          "canopy_moisture": {
+            "name": "canopy_moisture",
+            "status": "OK",
+            "value": 0.3521,
+            "unit": "",
+            "reason": null,
+            "threshold": -0.0547,
+            "threshold_basis": "DERIVED: median +/- 2 * robust_sigma over the reference distribution passed to this call, computed per run, not fixed in advance",
+            "interpretation": "Canopy water content. Falls before visible vigour does, so it is the earlier warning of the two.",
+            "provenance": {
+              "sensor": "Sentinel-2 median",
+              "date_start": "2022-07-01",
+              "date_end": "2023-03-31",
+              "n_scenes": 8,
+              "scale_m": 10,
+              "threshold_basis": "DERIVED: median +/- 2 * robust_sigma over the reference distribution passed to this call, computed per run, not fixed in advance",
+              "observed_fraction": 0.874,
+              "notes": ""
+            }
+          },
+          "thermal_stress": {
+            "name": "thermal_stress",
+            "status": "OK",
+            "value": 30.69,
+            "unit": "degC",
+            "reason": null,
+            "threshold": null,
+            "threshold_basis": null,
+            "interpretation": "Land surface temperature. A transpiring crop is cooler than a stressed one, so a warm field relative to its neighbours is a direct water-stress signal. 100 m: large fields only.",
+            "provenance": {
+              "sensor": "Landsat 8/9 ST_B10",
+              "date_start": "2022-07-01",
+              "date_end": "2023-03-31",
+              "n_scenes": 3,
+              "scale_m": 100,
+              "threshold_basis": null,
+              "observed_fraction": null,
+              "notes": ""
+            }
+          }
+        },
+        "context": {
+          "rainfall_mm_last_14d": 49.7,
+          "rainfall_source": "CHIRPS daily",
+          "rain_floor_mm": 5.0,
+          "rain_floor_basis": "ARBITRARY",
+          "reading": "No stress signal against the command-area reference threshold.",
+          "reading_status": "OK"
+        }
+      },
+      "water_requirement": {
+        "status": "NOT AVAILABLE",
+        "reason": "ERA5-Land returned days but no complete set of variables, so no ET0 day could be computed",
+        "days_returned": 0
+      },
+      "yield_estimate": {
+        "status": "OK",
+        "claim_level": "relative",
+        "mean_ndvi": 0.4083,
+        "yield_t_ha": null,
+        "caveat": "Canopy greenness is not yield. Grain fill, harvest losses and terminal stress all break the relationship after the canopy has already been measured.",
+        "reason": "no calibrated yield model exists for sorghum; at least 30 local harvest measurements are needed before any tonnage is quoted"
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 1.284190689861819,
+          "MTCI": 2.130054129317881,
+          "NDRE": 0.3940297156558441,
+          "S2REP": 725.1237392949694
+        },
+        "relative_condition": "BELOW SCHEME NORM",
+        "percentile_in_scheme": 25.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      }
+    },
+    {
+      "name": "Field 2",
+      "properties": {
+        "name": "Field 2"
+      },
+      "reference_provenance": {
+        "reference_source": "REAL: command area containing the field",
+        "reference_name": "Minor Canal 2",
+        "field_area_m2": 190767,
+        "reference_area_m2": 81039041,
+        "area_ratio": 424.81,
+        "area_ratio_basis": "ARBITRARY: 10.0x. The defensible value depends on how many independent fields the reference contains.",
+        "verdict_withheld": false
+      },
+      "condition": {
+        "indicators": {
+          "vigour": {
+            "name": "vigour",
+            "status": "OK",
+            "value": 0.7235,
+            "unit": "",
+            "reason": null,
+            "threshold": 0.3126,
+            "threshold_basis": "DERIVED: median +/- 2 * robust_sigma over the reference distribution passed to this call, computed per run, not fixed in advance",
+            "interpretation": "Mean crop vigour over the window.",
+            "provenance": {
+              "sensor": "Sentinel-2 median",
+              "date_start": "2022-07-01",
+              "date_end": "2023-03-31",
+              "n_scenes": 8,
+              "scale_m": 10,
+              "threshold_basis": "DERIVED: median +/- 2 * robust_sigma over the reference distribution passed to this call, computed per run, not fixed in advance",
+              "observed_fraction": 0.712,
+              "notes": ""
+            }
+          },
+          "canopy_moisture": {
+            "name": "canopy_moisture",
+            "status": "OK",
+            "value": 0.282,
+            "unit": "",
+            "reason": null,
+            "threshold": -0.0718,
+            "threshold_basis": "DERIVED: median +/- 2 * robust_sigma over the reference distribution passed to this call, computed per run, not fixed in advance",
+            "interpretation": "Canopy water content. Falls before visible vigour does, so it is the earlier warning of the two.",
+            "provenance": {
+              "sensor": "Sentinel-2 median",
+              "date_start": "2022-07-01",
+              "date_end": "2023-03-31",
+              "n_scenes": 8,
+              "scale_m": 10,
+              "threshold_basis": "DERIVED: median +/- 2 * robust_sigma over the reference distribution passed to this call, computed per run, not fixed in advance",
+              "observed_fraction": 0.831,
+              "notes": ""
+            }
+          },
+          "thermal_stress": {
+            "name": "thermal_stress",
+            "status": "OK",
+            "value": 25.43,
+            "unit": "degC",
+            "reason": null,
+            "threshold": null,
+            "threshold_basis": null,
+            "interpretation": "Land surface temperature. A transpiring crop is cooler than a stressed one, so a warm field relative to its neighbours is a direct water-stress signal. 100 m: large fields only.",
+            "provenance": {
+              "sensor": "Landsat 8/9 ST_B10",
+              "date_start": "2022-07-01",
+              "date_end": "2023-03-31",
+              "n_scenes": 3,
+              "scale_m": 100,
+              "threshold_basis": null,
+              "observed_fraction": null,
+              "notes": ""
+            }
+          }
+        },
+        "context": {
+          "rainfall_mm_last_14d": 169.8,
+          "rainfall_source": "CHIRPS daily",
+          "rain_floor_mm": 5.0,
+          "rain_floor_basis": "ARBITRARY",
+          "reading": "No stress signal against the command-area reference threshold.",
+          "reading_status": "OK"
+        }
+      },
+      "water_requirement": {
+        "status": "NOT AVAILABLE",
+        "reason": "ERA5-Land returned days but no complete set of variables, so no ET0 day could be computed",
+        "days_returned": 0
+      },
+      "yield_estimate": {
+        "status": "OK",
+        "claim_level": "relative",
+        "mean_ndvi": 0.7235,
+        "yield_t_ha": null,
+        "caveat": "Canopy greenness is not yield. Grain fill, harvest losses and terminal stress all break the relationship after the canopy has already been measured.",
+        "reason": "no calibrated yield model exists for sorghum; at least 30 local harvest measurements are needed before any tonnage is quoted"
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 1.628352642554872,
+          "MTCI": 1.2594053487431736,
+          "NDRE": 0.5177624144167087,
+          "S2REP": 702.5776791299176
+        },
+        "relative_condition": "BELOW SCHEME NORM",
+        "percentile_in_scheme": 25.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      }
+    },
+    {
+      "name": "Field 3 (no adequate reference)",
+      "properties": {
+        "name": "Field 3"
+      },
+      "reference_provenance": {
+        "reference_source": "NOT AVAILABLE: no candidate reference was wide enough relative to the field",
+        "field_area_m2": 190705,
+        "rejected_candidates": [
+          "reference area is only 3.1x the field, below the 10.0x minimum"
+        ],
+        "verdict_withheld": true
+      },
+      "condition": {
+        "indicators": {
+          "vigour": {
+            "name": "vigour",
+            "status": "OK",
+            "value": 0.3659,
+            "unit": "",
+            "reason": null,
+            "threshold": null,
+            "threshold_basis": "NOT AVAILABLE: no adequate reference area, so no relative threshold",
+            "interpretation": "Mean crop vigour over the window.",
+            "provenance": {
+              "sensor": "Sentinel-2 median",
+              "date_start": "2022-07-01",
+              "date_end": "2023-03-31",
+              "n_scenes": 8,
+              "scale_m": 10,
+              "threshold_basis": "DERIVED: median +/- 2 * robust_sigma over the reference distribution passed to this call, computed per run, not fixed in advance",
+              "observed_fraction": 0.782,
+              "notes": ""
+            }
+          },
+          "canopy_moisture": {
+            "name": "canopy_moisture",
+            "status": "OK",
+            "value": 0.2437,
+            "unit": "",
+            "reason": null,
+            "threshold": null,
+            "threshold_basis": "NOT AVAILABLE: no adequate reference area, so no relative threshold",
+            "interpretation": "Canopy water content. Falls before visible vigour does, so it is the earlier warning of the two.",
+            "provenance": {
+              "sensor": "Sentinel-2 median",
+              "date_start": "2022-07-01",
+              "date_end": "2023-03-31",
+              "n_scenes": 8,
+              "scale_m": 10,
+              "threshold_basis": "DERIVED: median +/- 2 * robust_sigma over the reference distribution passed to this call, computed per run, not fixed in advance",
+              "observed_fraction": 0.985,
+              "notes": ""
+            }
+          },
+          "thermal_stress": {
+            "name": "thermal_stress",
+            "status": "OK",
+            "value": 28.14,
+            "unit": "degC",
+            "reason": null,
+            "threshold": null,
+            "threshold_basis": null,
+            "interpretation": "Land surface temperature. A transpiring crop is cooler than a stressed one, so a warm field relative to its neighbours is a direct water-stress signal. 100 m: large fields only.",
+            "provenance": {
+              "sensor": "Landsat 8/9 ST_B10",
+              "date_start": "2022-07-01",
+              "date_end": "2023-03-31",
+              "n_scenes": 3,
+              "scale_m": 100,
+              "threshold_basis": null,
+              "observed_fraction": null,
+              "notes": ""
+            }
+          }
+        },
+        "context": {
+          "rainfall_mm_last_14d": 172.7,
+          "rainfall_source": "CHIRPS daily",
+          "rain_floor_mm": 5.0,
+          "rain_floor_basis": "ARBITRARY",
+          "reading": null,
+          "reading_status": "NOT AVAILABLE"
+        }
+      },
+      "water_requirement": {
+        "status": "NOT AVAILABLE",
+        "reason": "ERA5-Land returned days but no complete set of variables, so no ET0 day could be computed",
+        "days_returned": 0
+      },
+      "yield_estimate": {
+        "status": "OK",
+        "claim_level": "relative",
+        "mean_ndvi": 0.3659,
+        "yield_t_ha": null,
+        "caveat": "Canopy greenness is not yield. Grain fill, harvest losses and terminal stress all break the relationship after the canopy has already been measured.",
+        "reason": "no calibrated yield model exists for sorghum; at least 30 local harvest measurements are needed before any tonnage is quoted"
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 3.0445778835668644,
+          "MTCI": 4.121477464940742,
+          "NDRE": 0.1634300349195092,
+          "S2REP": 720.1285795355515
+        },
+        "relative_condition": "ABOVE SCHEME NORM",
+        "percentile_in_scheme": 75.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      }
+    }
+  ],
+  "rangeland": [
+    {
+      "name": "Range block A",
+      "status": "OK",
+      "productivity": {
+        "status": "NOT AVAILABLE",
+        "reason": "no usable NDVI observations in the window"
+      },
+      "timing": {
+        "status": "NOT AVAILABLE",
+        "reason": "only 0 usable observations; 8 needed before a green-up day means anything",
+        "min_scenes_basis": "ARBITRARY"
+      },
+      "water_points": {
+        "status": "NOT AVAILABLE",
+        "reason": "no valid surface-water pixels for this area"
+      },
+      "conflict_sensitivity": {
+        "en": "This describes vegetation and surface water measured from satellites. It says nothing about who may use this land, who has used it, or who should. It is neutral information for every party and is not evidence of any claim.",
+        "ar": "هذا وصف للغطاء النباتي والمياه السطحية كما قاست الأقمار الصناعية. لا يقول شيئًا عمّن يحقّ له استخدام هذه الأرض، ولا عمّن استخدمها، ولا عمّن ينبغي أن يستخدمها. هو معلومة محايدة لكل الأطراف وليس دليلًا على أيّ ادّعاء."
+      }
+    },
+    {
+      "status": "REFUSED",
+      "reason": "the supplied area name contains claim language (['tribal land']); rename it to a neutral identifier before this area can be reported",
+      "hits": [
+        "tribal land"
+      ]
+    }
+  ],
+  "forecast": {
+    "status": "OK",
+    "horizon_days": 7,
+    "mean_temperature_c": null,
+    "mean_precipitation_mm_per_step": null,
+    "forecast_steps": 6,
+    "provenance": {
+      "sensor": "NOAA GFS 0.25 degree",
+      "scale_m": 27830,
+      "note": "A ~28 km global model. This is the outlook over the scheme, not over a field. Rainfall is the least skilful variable in it."
+    },
+    "caveat": "A forecast is not a measurement. Nothing else in this platform depends on it, and no alert is raised from it."
+  },
+  "field_geometry_supplied": true
+}

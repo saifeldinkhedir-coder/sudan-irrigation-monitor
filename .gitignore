@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Local data stores. These hold ground observations, farm records and
+# calibration points - real people's fields and real people's money. They are
+# generated locally and must not travel with the code.
+*.db
+*.sqlite
+*.sqlite3
+
+# Earth Engine credentials and local environment
+.env
+.env.*
+*credentials*.json
+.config/earthengine/
+
+# Snapshot archives of this project
+*.zip
+
+# Engine output. Results are reproducible from the code plus geometry; the
+# checked-in sample under docs/ is the one deliberate exception.
+irrigation_results.json
+results*.json
+!docs/sample_results.json
