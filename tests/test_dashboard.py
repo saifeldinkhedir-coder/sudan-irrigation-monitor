@@ -292,3 +292,34 @@ def test_the_sample_exercises_every_continuity_and_efficiency_path():
     effs = [D.efficiency_summary(c) for c in r["canals"]]
     assert any(e["efficiency"] is None for e in effs)
     assert any(e["efficiency"] is not None for e in effs)
+
+
+def test_a_refused_rangeland_row_names_the_area_not_a_question_mark():
+    rows = D.rangeland_rows({"rangeland": [
+        {"status": "REFUSED", "name": "tribal land block B",
+         "reason": "claim language"}]})
+    assert rows[0]["name"] == "tribal land block B"
+
+
+def test_the_reach_strip_renders_each_state_distinctly():
+    """
+    Caught by looking at the running dashboard: the first version used emoji,
+    and ❔ fell back to a literal "?" in the system font — the same thing a
+    missing glyph produces, so an unobserved reach and a rendering failure
+    became indistinguishable. Block elements exist in every font.
+    """
+    strip = D.continuity_strip(["WET", "DRY", "UNOBSERVED"])
+    parts = strip.split(" ")
+    assert len(parts) == 3
+    assert len(set(parts)) == 3, "each state must render differently"
+    assert "blue" in parts[0] and "red" in parts[1] and "gray" in parts[2]
+
+
+def test_an_empty_strip_does_not_crash():
+    assert D.continuity_strip([]) == ""
+    assert D.continuity_strip(None) == ""
+
+
+def test_the_legend_names_all_three_states():
+    for word in ("water detected", "not detected", "not observed"):
+        assert word in D.REACH_LEGEND

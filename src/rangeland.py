@@ -385,7 +385,12 @@ def analyse_rangeland(area_feature: dict, start: str, end: str,
     name = area_feature.get("properties", {}).get("name", "rangeland area")
     neutral = check_neutrality(name)
     if not neutral["neutral"]:
+        # The offending name is echoed back deliberately. The refusal withholds
+        # MEASUREMENTS for this area; it does not withhold the identity of the
+        # area, and a refusal that cannot say which input to rename is a dead
+        # end for whoever has to fix the file.
         return {"status": "REFUSED",
+                "name": name,
                 "reason": ("the supplied area name contains claim language "
                            f"({neutral['hits']}); rename it to a neutral "
                            "identifier before this area can be reported"),

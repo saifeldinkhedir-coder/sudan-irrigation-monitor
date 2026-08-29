@@ -219,6 +219,29 @@ def continuity_summary(canal: dict) -> dict:
     }
 
 
+# Reach glyphs. Deliberately NOT emoji: emoji fall back to a literal "?" when a
+# glyph is missing from the system font, which is exactly what a genuinely
+# unobserved reach also looks like - two different meanings rendering as the
+# same character. Block elements exist in every font, and Streamlit's colour
+# markdown carries the meaning rather than the shape alone.
+_REACH_GLYPH = {
+    "WET": ":blue[█]",
+    "DRY": ":red[█]",          # the break is the thing to notice
+    "UNOBSERVED": ":gray[░]",
+}
+REACH_LEGEND = ":blue[█] water detected · :red[█] not detected · :gray[░] not observed"
+
+
+def continuity_strip(states: list) -> str:
+    """Head-to-tail reach strip as Streamlit colour markdown.
+
+    Lives here rather than in the view so the mapping is unit-tested: a strip
+    that renders a dry reach and an unobserved reach identically would erase
+    the distinction the whole continuity layer is built on.
+    """
+    return " ".join(_REACH_GLYPH.get(s, ":gray[?]") for s in states or [])
+
+
 def efficiency_summary(canal: dict) -> dict:
     """
     Consumption always; the ratio only when a real release volume exists.

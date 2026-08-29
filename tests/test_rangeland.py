@@ -145,3 +145,21 @@ class TestAreaNaming:
         out = rl.analyse_rangeland(area, "2022-07-01", "2022-10-01")
         assert out["status"] == "OK"
         assert "conflict_sensitivity" in out
+
+
+def test_a_refused_area_still_reports_which_area_it_was(ee_env):
+    """
+    Caught by running the dashboard: the refusal rendered as "?: the supplied
+    area name contains claim language". Withholding MEASUREMENTS for an area is
+    the point; withholding its identity makes the refusal a dead end for whoever
+    has to fix the file.
+    """
+    import importlib
+    importlib.reload(rl)
+    area = {"properties": {"name": "tribal land block 4"},
+            "geometry": {"type": "Polygon", "coordinates": [[
+                [33.0, 14.4], [33.1, 14.4], [33.1, 14.5], [33.0, 14.5],
+                [33.0, 14.4]]]}}
+    out = rl.analyse_rangeland(area, "2022-07-01", "2022-10-01")
+    assert out["status"] == "REFUSED"
+    assert out["name"] == "tribal land block 4"

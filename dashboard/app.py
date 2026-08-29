@@ -93,7 +93,7 @@ def main():
                               else ("yes" if r["extent_reliable"] else "WEAK")),
           "Command area": r["command_source"]}
          for r in rows],
-        use_container_width=True, hide_index=True)
+        width="stretch", hide_index=True)
 
     st.subheader("Canal detail")
     by_name = {c.get("name"): c for c in results.get("canals", [])}
@@ -147,7 +147,7 @@ def _render_fields(results: dict):
           "Nutrition": (r["nutrition"]["headline"] if r["nutrition"]["available"]
                         else "not available")}
          for r in frows],
-        use_container_width=True, hide_index=True)
+        width="stretch", hide_index=True)
     st.caption("‘Water needed’ is crop water REQUIREMENT calculated from "
                "weather and canopy. Nothing here measures what any field "
                "actually received.")
@@ -175,7 +175,7 @@ def _render_rangeland(results: dict):
           "Green-up day": r["greenup_day"],
           "Surface water": r["water"]}
          for r in rows],
-        use_container_width=True, hide_index=True)
+        width="stretch", hide_index=True)
 
 
 def _render_forecast(results: dict):
@@ -220,9 +220,9 @@ def _render_canal(canal: dict):
             st.write(f"**{cont['headline']}**")
             # A reach strip: the seasonal average hides this, and this is the
             # part that names a location a person can go and inspect.
-            icons = {"WET": "🟦", "DRY": "⬜", "UNOBSERVED": "❔"}
-            st.write(" ".join(icons.get(s, "?") for s in cont["states"])
-                     + "   (head → tail)")
+            st.markdown(D.continuity_strip(cont["states"])
+                        + "  &nbsp;&nbsp;head → tail")
+            st.caption(D.REACH_LEGEND)
             st.caption(
                 f"{cont['wet']} wet · {cont['dry']} dry · "
                 f"{cont['unobserved']} unobserved · longest dry run "

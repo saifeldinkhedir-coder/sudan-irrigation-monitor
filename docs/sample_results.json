@@ -1817,7 +1817,8 @@
       "reason": "the supplied area name contains claim language (['tribal land']); rename it to a neutral identifier before this area can be reported",
       "hits": [
         "tribal land"
-      ]
+      ],
+      "name": "tribal land block B"
     }
   ],
   "forecast": {
