@@ -75,6 +75,11 @@ MIN_SCENES_FOR_TIMING = 8
 _S2 = "COPERNICUS/S2_SR_HARMONIZED"
 _JRC_MONTHLY = "JRC/GSW1_4/MonthlyHistory"
 
+# The JRC monthly series stops here. Verified live on 2026-08-29: 454 images,
+# 1984-03-01 to 2021-12-01. A window past this date returns nothing, and an
+# empty return must not be reported as "the water points were dry".
+JRC_COVERAGE_END = "2021-12-01"
+
 
 # ==============================================================================
 # THE NEUTRALITY GUARD  (enforced, not promised)
@@ -312,6 +317,22 @@ def water_points(aoi, start: str, end: str, scale: int = 30) -> dict:
                .filterBounds(aoi).filterDate(start, end))
         n = col.size().getInfo()
         if n == 0:
+            # Established by a live check on 2026-08-29: the JRC monthly series
+            # ends 2021-12-01. Reporting "no surface-water observations" for a
+            # 2022 season would read as "the hafirs were dry", which is the
+            # opposite of what an absent dataset means.
+            if start > JRC_COVERAGE_END:
+                return {"status": "NOT AVAILABLE",
+                        "reason": (f"the JRC monthly surface-water series ends "
+                                   f"{JRC_COVERAGE_END}, so it cannot cover a "
+                                   f"window starting {start}. This is the "
+                                   "dataset's end date, NOT an observation that "
+                                   "these water points were dry."),
+                        "remedy": (f"analyse a season ending on or before "
+                                   f"{JRC_COVERAGE_END}, or detect water "
+                                   "directly from Sentinel-2 MNDWI for recent "
+                                   "seasons."),
+                        "dataset_coverage_end": JRC_COVERAGE_END}
             return {"status": "NOT AVAILABLE",
                     "reason": "no surface-water observations in the window"}
         # water == 2 in the JRC monthly classification

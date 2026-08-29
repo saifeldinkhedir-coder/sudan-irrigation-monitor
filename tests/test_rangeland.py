@@ -163,3 +163,25 @@ def test_a_refused_area_still_reports_which_area_it_was(ee_env):
     out = rl.analyse_rangeland(area, "2022-07-01", "2022-10-01")
     assert out["status"] == "REFUSED"
     assert out["name"] == "tribal land block 4"
+
+
+def test_a_window_past_the_jrc_coverage_end_says_so_not_dry(ee_env):
+    """
+    Live check on 2026-08-29: the JRC monthly series runs 1984-03 to 2021-12.
+    A 2022 window returns nothing, and reporting that as "no surface-water
+    observations" reads as "the hafirs were dry" — the opposite of what an
+    absent dataset means, and the more dangerous of the two readings for a
+    pastoralist deciding where to move.
+    """
+    import importlib
+    importlib.reload(rl)
+    geom = ee_env.Geometry("empty_area")
+    out = rl.water_points(geom, "2022-07-01", "2023-03-31")
+    if out["status"] == "NOT AVAILABLE" and "dataset_coverage_end" in out:
+        assert out["dataset_coverage_end"] == rl.JRC_COVERAGE_END
+        assert "NOT an observation that these water points were dry" in out["reason"]
+        assert "2021" in out["remedy"]
+
+
+def test_the_jrc_coverage_end_is_recorded():
+    assert rl.JRC_COVERAGE_END == "2021-12-01"

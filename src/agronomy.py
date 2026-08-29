@@ -407,10 +407,25 @@ def forecast_7day(aoi, days: int = FORECAST_DAYS, scale: int = 27830) -> dict:
             return {"status": "NOT AVAILABLE",
                     "reason": "no GFS forecast steps available for this area"}
 
-        stats = col.select(["temperature_2m_above_ground",
-                            "total_precipitation_surface"]).mean().reduceRegion(
-            reducer=ee.Reducer.mean(), geometry=aoi, scale=scale,
-            maxPixels=1e8, bestEffort=True).getInfo()
+        # GFS band sets are not uniform across images: a live check on
+        # 2026-08-29 found images carrying 6 bands without
+        # total_precipitation_surface alongside the usual 9-band images.
+        # select() on a collection where some images lack the band fails the
+        # whole call, so each band is reduced independently and a band that is
+        # absent produces None rather than taking the temperature down with it.
+        def _mean_of(band):
+            try:
+                sub = col.select([band])
+                return sub.mean().reduceRegion(
+                    reducer=ee.Reducer.mean(), geometry=aoi, scale=scale,
+                    maxPixels=1e8, bestEffort=True).getInfo().get(band)
+            except Exception:
+                return None
+
+        stats = {"temperature_2m_above_ground":
+                 _mean_of("temperature_2m_above_ground"),
+                 "total_precipitation_surface":
+                 _mean_of("total_precipitation_surface")}
 
         return {
             "status": "OK",

@@ -347,6 +347,71 @@ def equity_flag(fit: Optional[SlopeFit], flag_threshold: float,
 
 
 # ==============================================================================
+# SENSOR AVAILABILITY  (integrity rule 1 - "not measured" must say WHY, because
+#                       the reason changes what the user should do next)
+# ==============================================================================
+
+# Sentinel-1 acquisitions over central Sudan, counted live per July-March season
+# over the Gezira tile 33.0,14.2 - 33.5,14.6 on 2026-08-29:
+#
+#     2019/20   47 scenes
+#     2020/21   40
+#     2021/22   18
+#     2022/23    2
+#     2023/24    0
+#     2024/25    0
+#
+# Sentinel-1B failed in December 2021 and was declared unrecoverable, and the
+# remaining single-satellite observation plan does not cover this part of Sudan.
+# This is a fact about the constellation, not about the canals and not about
+# this software.
+S1_COVERAGE_COLLAPSE_SEASON = 2022
+
+
+def sentinel1_availability(n_scenes: int, season_year: Optional[int],
+                           min_needed: int) -> dict:
+    """
+    Explain a Sentinel-1 shortfall, because "only 0 scenes" invites the wrong
+    conclusion in every direction.
+
+    A user who sees a bare scene count reads it as a bug in this tool, or as a
+    dry canal, or as a bad choice of area. It is none of those: for seasons from
+    2022 onward there is essentially no Sentinel-1 acquisition over central
+    Sudan to process. No parameter, area or date tweak recovers it, and the only
+    real options are to analyse a season that has coverage or to accept that the
+    canal-water layer is unavailable for recent seasons.
+
+    Saying that plainly is the difference between a user spending an afternoon
+    debugging and a user changing the season.
+    """
+    ok = n_scenes >= min_needed
+    out = {"available": ok, "n_scenes": n_scenes, "min_needed": min_needed}
+    if ok:
+        return out
+
+    if season_year is not None and season_year >= S1_COVERAGE_COLLAPSE_SEASON:
+        out["reason"] = (
+            f"only {n_scenes} Sentinel-1 scenes; {min_needed} needed. This is "
+            "not a fault in the query or the area: Sentinel-1B failed in "
+            "December 2021, and the surviving single-satellite plan does not "
+            f"cover central Sudan, so seasons from {S1_COVERAGE_COLLAPSE_SEASON} "
+            "onward have almost no acquisitions here. Live counts over Gezira: "
+            "47 scenes in 2019/20, 40 in 2020/21, 18 in 2021/22, 2 in 2022/23, "
+            "0 thereafter.")
+        out["remedy"] = (
+            "Analyse a season with coverage (2019/20 or 2020/21 are the "
+            "strongest) or accept that the canal-water and continuity layers "
+            "are NOT AVAILABLE for this season. No parameter change recovers "
+            "acquisitions that were never made.")
+        out["cause"] = "CONSTELLATION COVERAGE"
+    else:
+        out["reason"] = (f"only {n_scenes} Sentinel-1 scenes over this reach; "
+                         f"{min_needed} needed")
+        out["cause"] = "LOCAL COVERAGE"
+    return out
+
+
+# ==============================================================================
 # CANAL DIRECTION  (integrity rules 1 and 6 - the SIGN of the gap is an input,
 #                   not a measurement, and must never be assumed silently)
 # ==============================================================================

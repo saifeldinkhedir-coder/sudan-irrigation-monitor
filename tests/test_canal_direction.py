@@ -121,3 +121,44 @@ def test_engine_records_the_assumption_when_direction_is_undeclared(ee_env):
                                   canal_props=canal["properties"])
     assert out["direction"]["verified"] is False
     assert out["direction"]["basis"].startswith("ASSUMED")
+
+
+# --- Sentinel-1 availability --------------------------------------------------
+#
+# Added after a live Earth Engine check on 2026-08-29 counted Sentinel-1 scenes
+# over the Gezira tile per season: 47, 40, 18, 2, 0, 0 for 2019/20 through
+# 2024/25. Sentinel-1B failed in December 2021 and the surviving plan does not
+# cover central Sudan. A bare "only 0 scenes" would send a user hunting for a
+# bug in their query; the shortfall is the constellation.
+
+class TestSentinel1Availability:
+    def test_enough_scenes_is_simply_available(self):
+        a = dl.sentinel1_availability(40, 2020, 4)
+        assert a["available"] is True
+        assert "reason" not in a
+
+    def test_a_recent_season_shortfall_names_the_constellation(self):
+        a = dl.sentinel1_availability(0, 2023, 4)
+        assert a["available"] is False
+        assert a["cause"] == "CONSTELLATION COVERAGE"
+        assert "Sentinel-1B failed" in a["reason"]
+        assert "not a fault in the query or the area" in a["reason"]
+
+    def test_it_tells_the_user_what_to_actually_do(self):
+        a = dl.sentinel1_availability(0, 2024, 4)
+        assert "2019/20 or 2020/21" in a["remedy"]
+        assert "No parameter change recovers" in a["remedy"]
+
+    def test_an_old_season_shortfall_is_local_not_constellation(self):
+        a = dl.sentinel1_availability(1, 2019, 4)
+        assert a["cause"] == "LOCAL COVERAGE"
+        assert "Sentinel-1B" not in a["reason"]
+
+    def test_an_unknown_season_does_not_claim_a_constellation_cause(self):
+        a = dl.sentinel1_availability(0, None, 4)
+        assert a["cause"] == "LOCAL COVERAGE"
+
+    def test_the_collapse_boundary_is_where_the_live_counts_put_it(self):
+        assert dl.S1_COVERAGE_COLLAPSE_SEASON == 2022
+        assert dl.sentinel1_availability(0, 2021, 4)["cause"] == "LOCAL COVERAGE"
+        assert dl.sentinel1_availability(0, 2022, 4)["cause"] == "CONSTELLATION COVERAGE"

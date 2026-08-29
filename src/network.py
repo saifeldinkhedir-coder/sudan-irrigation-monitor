@@ -381,8 +381,12 @@ def reach_wet_fractions(canal_geom, start: str, end: str,
                .select("VV"))
         n = col.size().getInfo()
         if n < MIN_S1_SCENES:
+            season_year = int(start[:4]) if start[:4].isdigit() else None
+            avail = dl.sentinel1_availability(n, season_year, MIN_S1_SCENES)
             return {"status": "INSUFFICIENT DATA",
-                    "reason": f"only {n} Sentinel-1 scenes; {MIN_S1_SCENES} needed",
+                    "reason": avail["reason"],
+                    "remedy": avail.get("remedy"),
+                    "cause": avail.get("cause"),
                     "n_scenes": n}
 
         water = col.median().lt(S1_WATER_DB)

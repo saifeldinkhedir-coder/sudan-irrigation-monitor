@@ -258,18 +258,28 @@ def evapotranspiration_mm(aoi, start: str, end: str) -> Optional[float]:
 
 
 def groundwater_context(aoi, start: str, end: str) -> Optional[float]:
-    """GRACE-FO terrestrial water storage anomaly, cm equivalent water height.
-    ~300 km footprint: regional context only, deliberately excluded from every
-    field- and canal-scale figure."""
+    """GRACE / GRACE-FO terrestrial water storage anomaly, cm equivalent water
+    height. ~300 km footprint: regional context only, deliberately excluded from
+    every field- and canal-scale figure.
+
+    COLLECTION CHOICE, ESTABLISHED BY A LIVE CHECK
+    The obvious id, NASA/GRACE/MASS_GRIDS_V04/LAND, is GRACE only: it ends on
+    2017-05-22 and returns nothing for any season this platform targets. The
+    MASCON product carries the GRACE-FO era through to 2024 and is what any
+    recent run needs. Its band is `lwe_thickness`, not the per-centre
+    `lwe_thickness_csr` of the LAND product - selecting the old band name on the
+    new collection would fail, and selecting the old collection returns an empty
+    series that reads as "no data" rather than "wrong dataset".
+    """
     try:
-        col = (ee.ImageCollection("NASA/GRACE/MASS_GRIDS_V04/LAND")
+        col = (ee.ImageCollection("NASA/GRACE/MASS_GRIDS_V04/MASCON")
                .filterBounds(aoi).filterDate(start, end))
         if col.size().getInfo() == 0:
             return None
-        v = col.mean().select("lwe_thickness_csr").reduceRegion(
+        v = col.mean().select("lwe_thickness").reduceRegion(
             reducer=ee.Reducer.mean(), geometry=aoi,
             scale=25000, maxPixels=1e9, bestEffort=True).getInfo()
-        return v.get("lwe_thickness_csr")
+        return v.get("lwe_thickness")
     except Exception:
         return None
 
@@ -351,10 +361,13 @@ def canal_water_status(canal_geom, start: str, end: str) -> Indicator:
     prov = Provenance(sensor="Sentinel-1 VV (IW, GRD)", date_start=start,
                       date_end=end, n_scenes=n, scale_m=SCALE_M)
     if n < MIN_S1_SCENES:
-        return Indicator.unavailable(
-            "canal_water",
-            f"only {n} Sentinel-1 scenes over this reach; {MIN_S1_SCENES} needed",
-            prov)
+        # A bare scene count invites the wrong conclusion. From 2022 onward the
+        # shortfall is the constellation, not the canal and not this query.
+        season_year = int(start[:4]) if start[:4].isdigit() else None
+        avail = dl.sentinel1_availability(n, season_year, MIN_S1_SCENES)
+        ind = Indicator.unavailable("canal_water", avail["reason"], prov)
+        ind.interpretation = avail.get("remedy", "")
+        return ind
     vv = col.median()
     water = vv.lt(S1_WATER_DB)
     frac = water.reduceRegion(
