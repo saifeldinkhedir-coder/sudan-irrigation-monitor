@@ -224,3 +224,23 @@ proves the pipeline is *wired* correctly, never that the *measurements* are
 correct. The measurements become real only when you run the engine against real
 New Halfa geometry with your `EE_PROJECT` (Stage 1 → 2). `sample_canals.geojson`
 and `docs/sample_results.json` are labelled illustrative/demo, not measurements.
+
+## Licence and citation
+
+Copyright 2026 Seifeldin Alkedir. Licensed under the
+[Apache License 2.0](LICENSE).
+
+You may use, modify and redistribute this work, including commercially, provided
+you keep the copyright and attribution notices, state any changes you made, and
+carry forward the [`NOTICE`](NOTICE) file. The licence includes an explicit
+patent grant. It does not grant permission to use the author's name to endorse
+or promote derived work.
+
+The third-party datasets this software reads — Copernicus Sentinel-1/2, Landsat
+8/9, CHIRPS, ERA5-Land, MODIS, GRACE-FO, JRC Global Surface Water, NOAA GFS —
+each carry their own terms and citation requirements, which this licence neither
+grants nor alters.
+
+If you publish figures produced by this software, please carry forward the
+limitations recorded in `NOTICE` and in every result's own `limitations` block.
+They are the conditions under which the numbers mean anything.

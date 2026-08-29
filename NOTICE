@@ -1,0 +1,49 @@
+Sudan Irrigation & Agriculture Monitor
+Copyright 2026 Seifeldin Alkedir
+
+This product includes software developed by Seifeldin Alkedir.
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file for the
+full terms. Anyone redistributing this work, modified or unmodified, must keep
+this notice and must state any changes they made.
+
+---
+
+ON THE FIGURES THIS SOFTWARE PRODUCES
+
+This is measurement software for irrigated agriculture. Anyone redistributing
+it, or publishing figures from it, should carry the following forward, because
+these are not disclaimers of convenience - they are the conditions under which
+the outputs mean anything at all.
+
+  Equity figures describe measured differences in outcome along a canal. A
+  head-to-tail gap has many possible causes - siltation, upstream abstraction,
+  soil, crop choice, planting date - and this software separates none of them.
+  No figure it produces attributes anything to any office, operator or decision,
+  and none should be presented as if it did.
+
+  Radar shows standing water, not flow. A canal full and static reads
+  identically to one carrying its design discharge.
+
+  Rangeland and corridor outputs describe vegetation and surface water only.
+  They say nothing about who may use land, and are not evidence of any claim by
+  any party. In contexts where farmer-herder tension is live, presenting them as
+  such would cause harm this software is explicitly designed to avoid.
+
+  Absolute nitrogen and yield figures are withheld unless a locally calibrated
+  model exists and clears a stated error limit. Removing those gates would
+  produce confident numbers that nobody can defend.
+
+  Sample geometry and sample results distributed with this software are
+  synthetic and are labelled as such in the files themselves. They demonstrate
+  the shape of the output and are not measurements of any real canal, field or
+  rangeland.
+
+THIRD-PARTY DATA
+
+This software reads public Earth observation datasets through Google Earth
+Engine, including Copernicus Sentinel-1 and Sentinel-2 (ESA), Landsat 8/9
+(USGS/NASA), CHIRPS (UCSB/USGS), ERA5-Land (ECMWF/Copernicus), MODIS and
+GRACE-FO (NASA), JRC Global Surface Water (European Commission), and NOAA GFS.
+Each carries its own terms and citation requirements, which are not granted or
+altered by the Apache License covering this software.
