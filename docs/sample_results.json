@@ -166,6 +166,56 @@
         "claim_level": "relative",
         "reason": null,
         "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      },
+      "continuity": {
+        "status": "OK",
+        "n_reaches": 6,
+        "states": [
+          "WET",
+          "WET",
+          "WET",
+          "DRY",
+          "DRY",
+          "DRY"
+        ],
+        "wet_reaches": 3,
+        "dry_reaches": 3,
+        "unobserved_reaches": 0,
+        "first_dry_reach": 4,
+        "last_wet_reach": 3,
+        "longest_dry_run": 3,
+        "continuous_to_last_wet": true,
+        "wet_threshold": 0.15,
+        "threshold_basis": "ARBITRARY: the wet-fraction cut-off decides where a break is reported and has no hydraulic meaning.",
+        "reach_wet_fractions": [
+          0.42,
+          0.42,
+          0.42,
+          0.03,
+          0.03,
+          0.03
+        ],
+        "interpretation": "Standing water detected per reach, head to tail. A break says water was not detected beyond that point in this window; it does not say why, and it does not describe movement of water.",
+        "unobserved_note": "Unobserved reaches are not dry reaches. They interrupt a run rather than extending it.",
+        "resolvability": {
+          "resolvable": true,
+          "width_m": 30.0,
+          "pixels_across": 3.0,
+          "note": "30.0 m is about 3.0 pixels at 10 m. Radar water figures for this canal are meaningful.",
+          "threshold_m": 20.0,
+          "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
+        }
+      },
+      "water_use_efficiency": {
+        "status": "OK",
+        "et_consumed_mm": 241.7,
+        "command_area_ha": 1200.0,
+        "consumed_m3": 2900400.0,
+        "efficiency": null,
+        "provenance_kind": "MEASURED (numerator only)",
+        "interpretation": "Water consumed by evapotranspiration over the command area. This is consumption, not efficiency.",
+        "efficiency_status": "NOT AVAILABLE",
+        "efficiency_reason": "no measured release volume for this command. Efficiency needs a denominator that comes from the scheme authority's gauge or operating records, not from a satellite. A design discharge or an allocation figure is not a measured release and is not substituted here."
       }
     },
     {
@@ -315,6 +365,61 @@
         "claim_level": "relative",
         "reason": null,
         "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      },
+      "continuity": {
+        "status": "OK",
+        "n_reaches": 6,
+        "states": [
+          "WET",
+          "WET",
+          "WET",
+          "WET",
+          "WET",
+          "WET"
+        ],
+        "wet_reaches": 6,
+        "dry_reaches": 0,
+        "unobserved_reaches": 0,
+        "first_dry_reach": null,
+        "last_wet_reach": 6,
+        "longest_dry_run": 0,
+        "continuous_to_last_wet": true,
+        "wet_threshold": 0.15,
+        "threshold_basis": "ARBITRARY: the wet-fraction cut-off decides where a break is reported and has no hydraulic meaning.",
+        "reach_wet_fractions": [
+          0.42,
+          0.42,
+          0.42,
+          0.42,
+          0.42,
+          0.42
+        ],
+        "interpretation": "Standing water detected per reach, head to tail. A break says water was not detected beyond that point in this window; it does not say why, and it does not describe movement of water.",
+        "unobserved_note": "Unobserved reaches are not dry reaches. They interrupt a run rather than extending it.",
+        "resolvability": {
+          "resolvable": true,
+          "width_m": 45.0,
+          "pixels_across": 4.5,
+          "note": "45.0 m is about 4.5 pixels at 10 m. Radar water figures for this canal are meaningful.",
+          "threshold_m": 20.0,
+          "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
+        }
+      },
+      "water_use_efficiency": {
+        "status": "OK",
+        "et_consumed_mm": 241.7,
+        "command_area_ha": 1200.0,
+        "consumed_m3": 2900400.0,
+        "efficiency": 0.62,
+        "provenance_kind": "MIXED",
+        "interpretation": "Water consumed by evapotranspiration over the command area. This is consumption, not efficiency.",
+        "efficiency_status": "OK",
+        "water_released_m3": 4678064.5,
+        "provenance_detail": {
+          "numerator": "MEASURED: MODIS actual evapotranspiration",
+          "denominator": "REPORTED: release volume supplied by the operator"
+        },
+        "efficiency_caveat": "A ratio above 1 means the command consumed more than the recorded release, which points at rainfall, groundwater, an unrecorded release or a wrong area - not at a physical impossibility. The denominator is reported by a person and is not verified here."
       }
     },
     {
@@ -464,6 +569,56 @@
         "claim_level": "relative",
         "reason": null,
         "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      },
+      "continuity": {
+        "status": "OK",
+        "n_reaches": 6,
+        "states": [
+          "WET",
+          "UNOBSERVED",
+          "WET",
+          "DRY",
+          "DRY",
+          "DRY"
+        ],
+        "wet_reaches": 2,
+        "dry_reaches": 3,
+        "unobserved_reaches": 1,
+        "first_dry_reach": 4,
+        "last_wet_reach": 3,
+        "longest_dry_run": 3,
+        "continuous_to_last_wet": null,
+        "wet_threshold": 0.15,
+        "threshold_basis": "ARBITRARY: the wet-fraction cut-off decides where a break is reported and has no hydraulic meaning.",
+        "reach_wet_fractions": [
+          0.42,
+          null,
+          0.42,
+          0.03,
+          0.03,
+          0.03
+        ],
+        "interpretation": "Standing water detected per reach, head to tail. A break says water was not detected beyond that point in this window; it does not say why, and it does not describe movement of water.",
+        "unobserved_note": "Unobserved reaches are not dry reaches. They interrupt a run rather than extending it.",
+        "resolvability": {
+          "resolvable": true,
+          "width_m": 25.0,
+          "pixels_across": 2.5,
+          "note": "25.0 m is about 2.5 pixels at 10 m. Radar water figures for this canal are meaningful.",
+          "threshold_m": 20.0,
+          "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
+        }
+      },
+      "water_use_efficiency": {
+        "status": "OK",
+        "et_consumed_mm": 241.7,
+        "command_area_ha": 1200.0,
+        "consumed_m3": 2900400.0,
+        "efficiency": null,
+        "provenance_kind": "MEASURED (numerator only)",
+        "interpretation": "Water consumed by evapotranspiration over the command area. This is consumption, not efficiency.",
+        "efficiency_status": "NOT AVAILABLE",
+        "efficiency_reason": "no measured release volume for this command. Efficiency needs a denominator that comes from the scheme authority's gauge or operating records, not from a satellite. A design discharge or an allocation figure is not a measured release and is not substituted here."
       }
     },
     {
@@ -613,6 +768,56 @@
         "claim_level": "relative",
         "reason": null,
         "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      },
+      "continuity": {
+        "status": "OK",
+        "n_reaches": 6,
+        "states": [
+          "DRY",
+          "DRY",
+          "DRY",
+          "DRY",
+          "DRY",
+          "DRY"
+        ],
+        "wet_reaches": 0,
+        "dry_reaches": 6,
+        "unobserved_reaches": 0,
+        "first_dry_reach": 1,
+        "last_wet_reach": null,
+        "longest_dry_run": 6,
+        "continuous_to_last_wet": null,
+        "wet_threshold": 0.15,
+        "threshold_basis": "ARBITRARY: the wet-fraction cut-off decides where a break is reported and has no hydraulic meaning.",
+        "reach_wet_fractions": [
+          0.03,
+          0.03,
+          0.03,
+          0.03,
+          0.03,
+          0.03
+        ],
+        "interpretation": "Standing water detected per reach, head to tail. A break says water was not detected beyond that point in this window; it does not say why, and it does not describe movement of water.",
+        "unobserved_note": "Unobserved reaches are not dry reaches. They interrupt a run rather than extending it.",
+        "resolvability": {
+          "resolvable": false,
+          "width_m": 8.0,
+          "pixels_across": 0.8,
+          "note": "8.0 m is below one 10 m pixel. Radar cannot resolve standing water in this canal at all; an absent water signal here is a statement about resolution, not about water.",
+          "threshold_m": 20.0,
+          "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
+        }
+      },
+      "water_use_efficiency": {
+        "status": "OK",
+        "et_consumed_mm": 241.7,
+        "command_area_ha": 1200.0,
+        "consumed_m3": 2900400.0,
+        "efficiency": null,
+        "provenance_kind": "MEASURED (numerator only)",
+        "interpretation": "Water consumed by evapotranspiration over the command area. This is consumption, not efficiency.",
+        "efficiency_status": "NOT AVAILABLE",
+        "efficiency_reason": "no measured release volume for this command. Efficiency needs a denominator that comes from the scheme authority's gauge or operating records, not from a satellite. A design discharge or an allocation figure is not a measured release and is not substituted here."
       }
     },
     {
@@ -762,6 +967,56 @@
         "claim_level": "relative",
         "reason": null,
         "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      },
+      "continuity": {
+        "status": "OK",
+        "n_reaches": 6,
+        "states": [
+          "WET",
+          "WET",
+          "WET",
+          "DRY",
+          "DRY",
+          "DRY"
+        ],
+        "wet_reaches": 3,
+        "dry_reaches": 3,
+        "unobserved_reaches": 0,
+        "first_dry_reach": 4,
+        "last_wet_reach": 3,
+        "longest_dry_run": 3,
+        "continuous_to_last_wet": true,
+        "wet_threshold": 0.15,
+        "threshold_basis": "ARBITRARY: the wet-fraction cut-off decides where a break is reported and has no hydraulic meaning.",
+        "reach_wet_fractions": [
+          0.42,
+          0.42,
+          0.42,
+          0.03,
+          0.03,
+          0.03
+        ],
+        "interpretation": "Standing water detected per reach, head to tail. A break says water was not detected beyond that point in this window; it does not say why, and it does not describe movement of water.",
+        "unobserved_note": "Unobserved reaches are not dry reaches. They interrupt a run rather than extending it.",
+        "resolvability": {
+          "resolvable": true,
+          "width_m": 30.0,
+          "pixels_across": 3.0,
+          "note": "30.0 m is about 3.0 pixels at 10 m. Radar water figures for this canal are meaningful.",
+          "threshold_m": 20.0,
+          "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
+        }
+      },
+      "water_use_efficiency": {
+        "status": "OK",
+        "et_consumed_mm": 241.7,
+        "command_area_ha": 1200.0,
+        "consumed_m3": 2900400.0,
+        "efficiency": null,
+        "provenance_kind": "MEASURED (numerator only)",
+        "interpretation": "Water consumed by evapotranspiration over the command area. This is consumption, not efficiency.",
+        "efficiency_status": "NOT AVAILABLE",
+        "efficiency_reason": "no measured release volume for this command. Efficiency needs a denominator that comes from the scheme authority's gauge or operating records, not from a satellite. A design discharge or an allocation figure is not a measured release and is not substituted here."
       }
     },
     {
@@ -909,6 +1164,56 @@
         "claim_level": "relative",
         "reason": null,
         "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      },
+      "continuity": {
+        "status": "OK",
+        "n_reaches": 6,
+        "states": [
+          "WET",
+          "WET",
+          "WET",
+          "WET",
+          "WET",
+          "WET"
+        ],
+        "wet_reaches": 6,
+        "dry_reaches": 0,
+        "unobserved_reaches": 0,
+        "first_dry_reach": null,
+        "last_wet_reach": 6,
+        "longest_dry_run": 0,
+        "continuous_to_last_wet": true,
+        "wet_threshold": 0.15,
+        "threshold_basis": "ARBITRARY: the wet-fraction cut-off decides where a break is reported and has no hydraulic meaning.",
+        "reach_wet_fractions": [
+          0.42,
+          0.42,
+          0.42,
+          0.42,
+          0.42,
+          0.42
+        ],
+        "interpretation": "Standing water detected per reach, head to tail. A break says water was not detected beyond that point in this window; it does not say why, and it does not describe movement of water.",
+        "unobserved_note": "Unobserved reaches are not dry reaches. They interrupt a run rather than extending it.",
+        "resolvability": {
+          "resolvable": true,
+          "width_m": 45.0,
+          "pixels_across": 4.5,
+          "note": "45.0 m is about 4.5 pixels at 10 m. Radar water figures for this canal are meaningful.",
+          "threshold_m": 20.0,
+          "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
+        }
+      },
+      "water_use_efficiency": {
+        "status": "OK",
+        "et_consumed_mm": 241.7,
+        "command_area_ha": 1200.0,
+        "consumed_m3": 2900400.0,
+        "efficiency": null,
+        "provenance_kind": "MEASURED (numerator only)",
+        "interpretation": "Water consumed by evapotranspiration over the command area. This is consumption, not efficiency.",
+        "efficiency_status": "NOT AVAILABLE",
+        "efficiency_reason": "no measured release volume for this command. Efficiency needs a denominator that comes from the scheme authority's gauge or operating records, not from a satellite. A design discharge or an allocation figure is not a measured release and is not substituted here."
       }
     },
     {
@@ -1058,6 +1363,56 @@
         "claim_level": "relative",
         "reason": null,
         "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      },
+      "continuity": {
+        "status": "OK",
+        "n_reaches": 6,
+        "states": [
+          "WET",
+          "UNOBSERVED",
+          "WET",
+          "DRY",
+          "DRY",
+          "DRY"
+        ],
+        "wet_reaches": 2,
+        "dry_reaches": 3,
+        "unobserved_reaches": 1,
+        "first_dry_reach": 4,
+        "last_wet_reach": 3,
+        "longest_dry_run": 3,
+        "continuous_to_last_wet": null,
+        "wet_threshold": 0.15,
+        "threshold_basis": "ARBITRARY: the wet-fraction cut-off decides where a break is reported and has no hydraulic meaning.",
+        "reach_wet_fractions": [
+          0.42,
+          null,
+          0.42,
+          0.03,
+          0.03,
+          0.03
+        ],
+        "interpretation": "Standing water detected per reach, head to tail. A break says water was not detected beyond that point in this window; it does not say why, and it does not describe movement of water.",
+        "unobserved_note": "Unobserved reaches are not dry reaches. They interrupt a run rather than extending it.",
+        "resolvability": {
+          "resolvable": true,
+          "width_m": 25.0,
+          "pixels_across": 2.5,
+          "note": "25.0 m is about 2.5 pixels at 10 m. Radar water figures for this canal are meaningful.",
+          "threshold_m": 20.0,
+          "threshold_basis": "ARBITRARY: two pixels across as a usability floor"
+        }
+      },
+      "water_use_efficiency": {
+        "status": "OK",
+        "et_consumed_mm": 241.7,
+        "command_area_ha": 1200.0,
+        "consumed_m3": 2900400.0,
+        "efficiency": null,
+        "provenance_kind": "MEASURED (numerator only)",
+        "interpretation": "Water consumed by evapotranspiration over the command area. This is consumption, not efficiency.",
+        "efficiency_status": "NOT AVAILABLE",
+        "efficiency_reason": "no measured release volume for this command. Efficiency needs a denominator that comes from the scheme authority's gauge or operating records, not from a satellite. A design discharge or an allocation figure is not a measured release and is not substituted here."
       }
     }
   ],

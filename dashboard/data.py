@@ -180,6 +180,73 @@ def fields_without_verdict(rows: list) -> int:
     return sum(1 for r in rows if r["verdict_withheld"])
 
 
+def continuity_summary(canal: dict) -> dict:
+    """
+    Where the water stopped, phrased as a place rather than a percentage.
+
+    "Water was not detected beyond reach 4 of 8" sends someone to a location.
+    "Canal 40% wet" sends nobody anywhere, and the two can describe the same
+    canal. The unobserved count is carried through because a manager reading
+    "3 dry" needs to know whether the other reaches were checked.
+    """
+    c = canal.get("continuity") or {}
+    if c.get("status") != "OK":
+        return {"available": False,
+                "reason": c.get("reason", c.get("status", "not available"))}
+    fd = c.get("first_dry_reach")
+    n = c.get("n_reaches")
+    # Order matters. A canal dry from reach 1 has first_dry_reach == 1, and
+    # "water not detected beyond reach 0" is not a sentence about anywhere. The
+    # no-water case is checked first so it gets its own phrasing.
+    if not c.get("wet_reaches"):
+        headline = "no standing water detected in any reach"
+    elif fd:
+        headline = f"water not detected beyond reach {fd - 1} of {n}"
+    else:
+        headline = f"no break detected across {n} reaches"
+    res = c.get("resolvability") or {}
+    return {
+        "available": True,
+        "headline": headline,
+        "states": c.get("states", []),
+        "wet": c.get("wet_reaches"),
+        "dry": c.get("dry_reaches"),
+        "unobserved": c.get("unobserved_reaches"),
+        "longest_dry_run": c.get("longest_dry_run"),
+        "resolvable": res.get("resolvable"),
+        "resolvability_note": res.get("note", ""),
+        "caveat": c.get("interpretation", ""),
+    }
+
+
+def efficiency_summary(canal: dict) -> dict:
+    """
+    Consumption always; the ratio only when a real release volume exists.
+
+    The dashboard must not show an empty efficiency cell that reads as zero or
+    as "efficient". It shows the consumption that was measured and states, in
+    words, that the denominator is missing and where it would have to come from.
+    """
+    w = canal.get("water_use_efficiency") or {}
+    if w.get("status") != "OK":
+        return {"available": False,
+                "reason": w.get("reason", "not available")}
+    out = {
+        "available": True,
+        "consumed_m3": w.get("consumed_m3"),
+        "area_ha": w.get("command_area_ha"),
+        "efficiency": w.get("efficiency"),
+    }
+    if w.get("efficiency") is None:
+        out["headline"] = (f"{w.get('consumed_m3', 0):,.0f} m³ consumed; "
+                           "efficiency not available")
+        out["reason"] = w.get("efficiency_reason", "")
+    else:
+        out["headline"] = f"efficiency {w['efficiency']}"
+        out["caveat"] = w.get("efficiency_caveat", "")
+    return out
+
+
 def water_requirement_summary(record: dict) -> dict:
     """
     Crop water requirement for a canal command or a field, phrased so the

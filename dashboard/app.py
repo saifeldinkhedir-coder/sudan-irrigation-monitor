@@ -212,6 +212,28 @@ def _render_canal(canal: dict):
                          f"fit R² {rs['r2']}.")
             st.caption(rs["caveat"])
 
+        st.markdown("**Continuity — where the water stopped**")
+        cont = D.continuity_summary(canal)
+        if not cont["available"]:
+            st.write(f"Not available — {cont['reason']}")
+        else:
+            st.write(f"**{cont['headline']}**")
+            # A reach strip: the seasonal average hides this, and this is the
+            # part that names a location a person can go and inspect.
+            icons = {"WET": "🟦", "DRY": "⬜", "UNOBSERVED": "❔"}
+            st.write(" ".join(icons.get(s, "?") for s in cont["states"])
+                     + "   (head → tail)")
+            st.caption(
+                f"{cont['wet']} wet · {cont['dry']} dry · "
+                f"{cont['unobserved']} unobserved · longest dry run "
+                f"{cont['longest_dry_run']}. An unobserved reach is not a dry "
+                "reach and is never counted as one.")
+            if cont["resolvable"] is False:
+                st.warning(cont["resolvability_note"])
+            elif cont["resolvable"] is None:
+                st.caption(cont["resolvability_note"])
+            st.caption(cont["caveat"])
+
     with right:
         st.markdown("**Canal water (Sentinel-1)**")
         cw = canal.get("canal_water", {})
@@ -221,6 +243,14 @@ def _render_canal(canal: dict):
             st.write(f"Not available — {cw.get('reason','')}")
         for line in D.provenance_lines(cw):
             st.caption(line)
+
+        st.markdown("**Water consumed / efficiency**")
+        eff = D.efficiency_summary(canal)
+        if not eff["available"]:
+            st.write(f"Not available — {eff['reason']}")
+        else:
+            st.write(eff["headline"])
+            st.caption(eff.get("reason") or eff.get("caveat", ""))
 
         st.markdown("**Nutrition**")
         n = D.nutrition_summary(canal)

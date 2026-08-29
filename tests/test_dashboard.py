@@ -212,3 +212,83 @@ def test_the_sample_still_exercises_every_display_state():
 
     assert any(x.get("status") == "REFUSED" for x in r.get("rangeland", [])), \
         "the sample must contain a rangeland area refused for claim language"
+
+
+# --- continuity and efficiency ------------------------------------------------
+
+def test_continuity_headline_names_a_place_not_a_percentage():
+    s = D.continuity_summary({"continuity": {
+        "status": "OK", "n_reaches": 8, "first_dry_reach": 5,
+        "states": ["WET"] * 4 + ["DRY"] * 4,
+        "wet_reaches": 4, "dry_reaches": 4, "unobserved_reaches": 0,
+        "longest_dry_run": 4, "interpretation": "standing water per reach",
+        "resolvability": {"resolvable": True, "note": "fine"}}})
+    assert s["available"] is True
+    assert s["headline"] == "water not detected beyond reach 4 of 8"
+
+
+def test_continuity_carries_the_unobserved_count_through():
+    s = D.continuity_summary({"continuity": {
+        "status": "OK", "n_reaches": 6, "first_dry_reach": None,
+        "states": ["WET", "WET", "UNOBSERVED", "WET", "WET", "WET"],
+        "wet_reaches": 5, "dry_reaches": 0, "unobserved_reaches": 1,
+        "longest_dry_run": 0, "interpretation": "",
+        "resolvability": {"resolvable": None, "note": "width unknown"}}})
+    assert s["unobserved"] == 1
+    assert "no break detected" in s["headline"]
+
+
+def test_a_narrow_canal_surfaces_its_resolvability_warning():
+    s = D.continuity_summary({"continuity": {
+        "status": "OK", "n_reaches": 4, "first_dry_reach": 1,
+        "states": ["DRY"] * 4, "wet_reaches": 0, "dry_reaches": 4,
+        "unobserved_reaches": 0, "longest_dry_run": 4, "interpretation": "",
+        "resolvability": {"resolvable": False,
+                          "note": "8 m is below one 10 m pixel"}}})
+    assert s["resolvable"] is False
+    assert "below one" in s["resolvability_note"]
+    assert s["headline"] == "no standing water detected in any reach"
+
+
+def test_missing_continuity_is_a_reason_not_an_empty_strip():
+    s = D.continuity_summary({"continuity": {"status": "INSUFFICIENT DATA",
+                                             "reason": "only 2 S1 scenes"}})
+    assert s["available"] is False
+    assert s["reason"] == "only 2 S1 scenes"
+
+
+def test_efficiency_without_a_denominator_shows_consumption_and_says_why():
+    s = D.efficiency_summary({"water_use_efficiency": {
+        "status": "OK", "consumed_m3": 8400000.0, "command_area_ha": 1200.0,
+        "efficiency": None,
+        "efficiency_reason": "no measured release volume for this command."}})
+    assert s["available"] is True
+    assert s["efficiency"] is None
+    assert "efficiency not available" in s["headline"]
+    assert "release volume" in s["reason"]
+
+
+def test_efficiency_with_a_denominator_shows_the_ratio():
+    s = D.efficiency_summary({"water_use_efficiency": {
+        "status": "OK", "consumed_m3": 8400000.0, "command_area_ha": 1200.0,
+        "efficiency": 0.7, "efficiency_caveat": "denominator is reported"}})
+    assert s["headline"] == "efficiency 0.7"
+    assert "reported" in s["caveat"]
+
+
+def test_the_sample_exercises_every_continuity_and_efficiency_path():
+    """Extends the fixture guarantee above to the network layer: a break, an
+    unbroken canal, an unobserved reach, a canal too narrow to resolve, and both
+    the refused and the computed efficiency."""
+    r = _results()
+    states = {s for c in r["canals"] for s in (c.get("continuity") or {}).get("states", [])}
+    assert {"WET", "DRY", "UNOBSERVED"} <= states
+
+    conts = [D.continuity_summary(c) for c in r["canals"]]
+    assert any("not detected beyond reach" in c["headline"] for c in conts)
+    assert any("no break detected" in c["headline"] for c in conts)
+    assert any(c["resolvable"] is False for c in conts)
+
+    effs = [D.efficiency_summary(c) for c in r["canals"]]
+    assert any(e["efficiency"] is None for e in effs)
+    assert any(e["efficiency"] is not None for e in effs)

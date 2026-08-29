@@ -27,6 +27,9 @@ src/
   attribution.py               Stage 3: stratified control for soil/crop/planting
                                date, adjusted gap + CI, placebo test, green-up,
                                persistence, negative controls.
+  network.py                   continuity (where the water stopped), siltation
+                               candidates, water-use efficiency + its refusal,
+                               radar resolvability qualifier.
   agronomy.py                  FAO-56 ET0, Kcb from NDVI, crop water requirement,
                                irrigation requirement, GFS outlook, yield gate.
   rangeland.py                 rangeland productivity + timing, water points,
@@ -43,7 +46,9 @@ geolibre_plugin/
   plugin.json, forms/, bridge.py   Stage 4: manifest, field form, two-way bridge.
 geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
-tests/                         191 tests; run with no Earth Engine.
+  canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
+                               against what the engine requires, before a run.
+tests/                         257 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -52,6 +57,9 @@ docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; samp
 | Layer | What it answers | State |
 |---|---|---|
 | **Network** | did water arrive, was it shared fairly | built |
+| **Continuity** | *where* the water stopped, reach by reach | built |
+| **Siltation** | reaches holding less water than in past seasons | built, candidates only |
+| **Efficiency** | ET consumed ÷ water released | consumption built, ratio refused |
 | **Field** | how is this field, is it short of water | built |
 | **Water requirement** | how much did the crop need (≠ receive) | built |
 | **Nutrition ladder** | relative → strip sufficiency → calibrated N | built, gated |
@@ -111,7 +119,7 @@ one is a hazard rather than a missing nicety.
 pip install -r requirements.txt        # earthengine-api, numpy, streamlit, pytest
 
 # tests need NO Earth Engine and no auth:
-pytest -q                              # 191 tests
+pytest -q                              # 257 tests
 
 # run the FULL pipeline offline against the mock backend (no auth, no quota):
 python - <<'PY'
@@ -150,6 +158,51 @@ corridor maps are the artefacts most likely to be carried into a dispute as
 evidence, and the measurement itself — how green a strip of land was in
 October — contains no claim at all until someone attaches one.
 
+### Check your geometry before you run
+
+Most real canal geometry in Sudan will be hand-digitised over sub-metre imagery,
+because a Gezira minor canal is 5–15 m wide and a 10 m water-frequency raster
+cannot see it. Hand digitising is the right method, and it produces exactly the
+defects that later become indefensible numbers. Catch them at ingest:
+
+```bash
+python geometry/canal_geometry.py validate --canal canals.geojson --command-areas commands.geojson
+```
+
+It refuses: no direction property, fewer than 4 vertices (no reaches to fit),
+`MultiLineString` (no unambiguous head-to-tail order), duplicate names (command
+areas silently merge and the equity figure belongs to neither canal), projected
+coordinates, and zero-length lines. It warns about: missing `width_m` (without
+it no radar figure can be qualified as resolvable), repeated vertices,
+implausible lengths, and canals with no matching command polygon.
+
+`fetch` pulls `waterway=canal|ditch|drain` from OpenStreetMap — useful for main
+and major canals, which are often mapped. Minor canals usually are not. Fetched
+canals are written **without** a direction property on purpose, so the validator
+refuses them until a person supplies it: an inherited arbitrary direction is
+worse than an absent one, because it looks like information.
+
+### Standing water is not flow
+
+Every network figure rests on C-band backscatter, which says a surface is smooth
+and wet. It does not say the water is moving, moving the intended way, or usable
+downstream — a canal full and static reads identically to one carrying its
+design discharge. The word "flow" appears in no output string in `network.py`.
+
+**Continuity** is the figure that earns its place: a canal wet at reaches 1–3
+and dry at 4–8, and a canal half-wet along its whole length, have the same
+seasonal average and are completely different problems. Only one of them names a
+place someone can go and look at. An **unobserved** reach is never counted as
+dry — it interrupts a dry run rather than extending it, because calling an
+unseen reach dry would manufacture the exact finding the layer exists to report.
+
+**Efficiency is refused by default.** The numerator (ET over the command) is a
+satellite measurement; the denominator (volume released through the offtake) is
+the scheme authority's gauge reading. Studies routinely substitute a design
+discharge or an allocation for the measured release, which turns a measurement
+into an assumption while keeping the word "efficiency" on it. This engine
+reports the consumption it can measure and withholds the ratio.
+
 ### Canal direction is an input, not an assumption
 
 The head-to-tail gap is **signed**, and nothing in a LineString records which end
@@ -164,7 +217,7 @@ vertical noise, so a DEM would dress an assumption up as a measurement.
 
 ## Status — honest
 
-**Logic tested, plumbing tested, measurements unvalidated.** All 191 tests pass
+**Logic tested, plumbing tested, measurements unvalidated.** All 257 tests pass
 with no Earth Engine. The mock backend runs the whole `analyse()` pipeline
 offline, so the wiring is verified — but the mock returns synthetic values, so it
 proves the pipeline is *wired* correctly, never that the *measurements* are

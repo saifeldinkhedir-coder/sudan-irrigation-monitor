@@ -665,8 +665,21 @@ def resolve_command_area(canal_feature: dict, canal_geom,
                 matched.append(ee.Feature(ee.Geometry(cf["geometry"])))
         if matched:
             geom = ee.FeatureCollection(matched).geometry()
+            # Area comes from the GeoJSON, not from a server round trip. It is
+            # needed for the consumption half of water-use efficiency, and
+            # asking the operator to supply a hectare figure they would have to
+            # look up is a worse answer than computing it from the polygon they
+            # already gave us.
+            ha = sum(dl.geojson_area_m2(cf.get("geometry")) or 0.0
+                     for cf in command_fc["features"]
+                     if str((cf.get("properties", {}) or {}).get("canal")
+                            or (cf.get("properties", {}) or {}).get("canal_name")
+                            or (cf.get("properties", {}) or {}).get("name") or "")
+                     .strip().lower() == canal_name.strip().lower()) / 10000.0
             return geom, {"command_area_source": "REAL: matched by name property",
-                          "matched_polygons": len(matched)}
+                          "matched_polygons": len(matched),
+                          "command_area_ha": round(ha, 1),
+                          "area_basis": "computed from the supplied polygon"}
 
         # spatial fallback: polygons intersecting the canal buffer
         buf = canal_geom.buffer(FALLBACK_COMMAND_HALF_WIDTH_M)
@@ -807,6 +820,11 @@ def analyse(canal_fc: dict, command_fc: Optional[dict], season: int,
     except Exception as e:
         print(f"  (rangeland module unavailable: {e})")
         rng = None
+    try:
+        import network as netw
+    except Exception as e:
+        print(f"  (network module unavailable: {e})")
+        netw = None
 
     results = {
         "tool": "Sudan Irrigation & Agriculture Monitor",
@@ -840,7 +858,16 @@ def analyse(canal_fc: dict, command_fc: Optional[dict], season: int,
             "records which end the water enters. Direction comes from a "
             "'vertex_order' property or an 'offtake' coordinate; with neither, "
             "vertex order is ASSUMED and the gap's sign is unverified.",
-            "Radar shows standing water, not flow.",
+            "Radar shows standing water, not flow. A canal full and static "
+            "reads identically to one carrying its design discharge, so no "
+            "figure here describes movement of water.",
+            "Continuity says where standing water was last detected. An "
+            "unobserved reach is not a dry reach and never counts as one.",
+            "Siltation output is a list of reaches worth inspecting. Sediment "
+            "depth is not observable from orbit and none is estimated.",
+            "Network water-use efficiency needs a measured release volume from "
+            "the scheme authority. Without it the consumption is reported and "
+            "the ratio is withheld; a design discharge is never substituted.",
             "Canals narrower than about 20 m are below reliable detection at "
             "10 m radar resolution.",
             "Thermal is 100 m and 16-day: a large-field and canal-command "
@@ -913,6 +940,28 @@ def analyse(canal_fc: dict, command_fc: Optional[dict], season: int,
         et = evapotranspiration_mm(command, start, end)
         rain = rainfall_mm(command, start, end)
 
+        # WHERE the water stopped, not just whether it was there. Uses the same
+        # resolved direction as the equity fit, so a break is reported at the
+        # correct end of the canal or not at all.
+        continuity = None
+        if netw is not None:
+            direction = (equity.get("direction") or {}) if isinstance(equity, dict) else {}
+            continuity = netw.canal_continuity(
+                geom, start, end,
+                reverse=bool(direction.get("reverse")),
+                canal_width_m=f.get("properties", {}).get("width_m"))
+            if continuity.get("status") == "OK":
+                fd = continuity.get("first_dry_reach")
+                print("  continuity       : "
+                      + (f"water not detected beyond reach {fd - 1}"
+                         if fd else "no break detected")
+                      + f"  ({continuity['wet_reaches']} wet / "
+                        f"{continuity['dry_reaches']} dry / "
+                        f"{continuity['unobserved_reaches']} unseen)")
+            else:
+                print(f"  continuity       : {continuity.get('status')} "
+                      f"({continuity.get('reason', '')})")
+
         canal_record = {
             "name": name,
             "command_area_provenance": cmd_prov,
@@ -922,6 +971,25 @@ def analyse(canal_fc: dict, command_fc: Optional[dict], season: int,
             "seasonal_et_mm": round(et, 1) if et is not None else None,
             "seasonal_rainfall_mm": round(rain, 1) if rain is not None else None,
         }
+        if continuity is not None:
+            canal_record["continuity"] = continuity
+
+        # Efficiency, which in practice means the refusal. The release volume
+        # comes from the scheme authority's records, not from a satellite, and
+        # `water_released_m3` on the canal feature is where it goes when it
+        # exists. Without it the consumption half is reported and the ratio is
+        # withheld rather than approximated from a design discharge.
+        if netw is not None:
+            # Area from the real command polygon where one was matched; the
+            # canal's own property only as an override. The synthetic buffer
+            # deliberately supplies none - an efficiency figure over an
+            # arbitrary 1.5 km strip would be arithmetic on a made-up area.
+            area_ha = (f.get("properties", {}).get("command_area_ha")
+                       or cmd_prov.get("command_area_ha"))
+            canal_record["water_use_efficiency"] = netw.water_use_efficiency(
+                et_consumed_mm=et,
+                command_area_ha=area_ha,
+                water_released_m3=f.get("properties", {}).get("water_released_m3"))
 
         # Command-scale crop water requirement. Paired with the canal-water and
         # rainfall figures above, this is the pair of numbers the whole platform
