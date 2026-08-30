@@ -237,7 +237,11 @@ def effective_rainfall_mm(daily_rain_mm: Sequence[Optional[float]],
 # EARTH ENGINE FETCHERS - one round trip each
 # ==============================================================================
 
-def era5_daily_series(aoi, start: str, end: str, scale: int = 11000) -> Optional[dict]:
+ERA5_NATIVE_M = 11000
+
+
+def era5_daily_series(aoi, start: str, end: str,
+                      scale: int = ERA5_NATIVE_M) -> Optional[dict]:
     """
     Pull the daily ERA5-Land variables ET0 needs as region means, in ONE
     aggregate_array round trip per variable rather than one per day.
@@ -247,7 +251,14 @@ def era5_daily_series(aoi, start: str, end: str, scale: int = 11000) -> Optional
     if ee is None:
         return None
     try:
-        col = ee.ImageCollection(_ERA5_DAILY).filterBounds(aoi).filterDate(start, end)
+        # Buffered to one native pixel. A field is ~600 m and ERA5-Land is
+        # ~11 km, so an unbuffered reduction encloses no pixel centre and
+        # returns nulls for every variable - which would surface as "ERA5-Land
+        # returned days but no complete set of variables" for data that covers
+        # the field fine. The value is the ERA5 cell containing the field, which
+        # is all this dataset can say about it.
+        region = aoi.buffer(dl.coarse_sampling_buffer_m(ERA5_NATIVE_M))
+        col = ee.ImageCollection(_ERA5_DAILY).filterBounds(region).filterDate(start, end)
         if col.size().getInfo() == 0:
             return None
 
@@ -263,7 +274,7 @@ def era5_daily_series(aoi, start: str, end: str, scale: int = 11000) -> Optional
         }
 
         def day_props(img):
-            stats = img.reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi,
+            stats = img.reduceRegion(reducer=ee.Reducer.mean(), geometry=region,
                                      scale=scale, maxPixels=1e8, bestEffort=True)
             return ee.Feature(None, {k: stats.get(b) for k, b in wanted.items()})
 

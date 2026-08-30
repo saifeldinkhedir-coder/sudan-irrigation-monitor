@@ -189,3 +189,80 @@ class TestAdvisory:
         a = fr.advisory({})
         assert a["items"] == [] or all(i["key"] != "irrigation" for i in a["items"])
         assert a["withheld"]
+
+
+# --- the advisory must read BOTH engine record shapes -------------------------
+#
+# Found in the first live farm run: the advisory produced one item and reported
+# "no CHIRPS rainfall figure" for a record that carried 228 mm. It only knew the
+# network engine's condition.indicators/.context nesting, and the agriculture
+# engine uses crop_health.readings with rainfall and thermal as siblings.
+# Silently withholding advice the engine had already computed is the exact
+# failure mode this platform exists to prevent.
+
+def _agri_record(**over):
+    rec = {
+        "name": "Field 2",
+        "reference_provenance": {"verdict_withheld": False},
+        "crop_health": {"readings": {
+            "vigour": {"status": "OK", "value": 0.21, "threshold": 0.30},
+            "canopy_moisture": {"status": "OK", "value": 0.05,
+                                "threshold": 0.12}}},
+        "thermal_stress": {"status": "OK", "value": 42.4,
+                           "neighbourhood_c": 39.0, "difference_c": 3.4},
+        "rainfall": {"season_mm": 228.0, "last_14d_mm": 0.0},
+        "water_requirement": {"status": "OK",
+                              "irrigation_requirement_mm": 310.0},
+        "nutrition": {"status": "OK", "claim_level": "relative",
+                      "relative_condition": "WITHIN SCHEME NORM"},
+    }
+    rec.update(over)
+    return rec
+
+
+class TestAdvisoryAcrossRecordShapes:
+    def test_the_agriculture_shape_produces_a_full_advisory(self):
+        a = fr.advisory(_agri_record(), lang="en")
+        keys = {i["key"] for i in a["items"]}
+        assert {"irrigation", "rainfall", "nutrition", "stress", "thermal"} <= keys
+
+    def test_rainfall_is_read_from_the_farm_record_not_reported_missing(self):
+        a = fr.advisory(_agri_record(), lang="en")
+        assert "rainfall" not in {w["key"] for w in a["withheld"]}
+        text = next(i["text"] for i in a["items"] if i["key"] == "rainfall")
+        assert "0.0 mm" in text
+
+    def test_indicators_below_the_neighbourhood_threshold_are_named(self):
+        a = fr.advisory(_agri_record(), lang="en")
+        text = next(i["text"] for i in a["items"] if i["key"] == "stress")
+        assert "vigour" in text and "canopy moisture" in text
+
+    def test_a_healthy_field_says_so_rather_than_staying_silent(self):
+        rec = _agri_record(crop_health={"readings": {
+            "vigour": {"status": "OK", "value": 0.62, "threshold": 0.30}}})
+        a = fr.advisory(rec, lang="en")
+        text = next(i["text"] for i in a["items"] if i["key"] == "stress")
+        assert "no indicator below" in text
+
+    def test_thermal_says_it_leads_the_visible_signal(self):
+        a = fr.advisory(_agri_record(), lang="en")
+        text = next(i["text"] for i in a["items"] if i["key"] == "thermal")
+        assert "3.4 degC warmer" in text
+        assert "before visible vigour" in text
+
+    def test_a_small_thermal_difference_raises_nothing(self):
+        rec = _agri_record(thermal_stress={"status": "OK", "difference_c": 0.3})
+        a = fr.advisory(rec, lang="en")
+        assert "thermal" not in {i["key"] for i in a["items"]}
+
+    def test_the_network_shape_still_works(self):
+        """The original record shape must not have been broken by the change."""
+        a = fr.advisory(_field(), lang="en")
+        keys = {i["key"] for i in a["items"]}
+        assert {"irrigation", "rainfall", "nutrition"} <= keys
+
+    def test_a_withheld_verdict_still_suppresses_the_stress_item(self):
+        rec = _agri_record(reference_provenance={"verdict_withheld": True})
+        a = fr.advisory(rec, lang="en")
+        assert "stress" not in {i["key"] for i in a["items"]}
+        assert "stress" in {w["key"] for w in a["withheld"]}

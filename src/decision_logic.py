@@ -347,6 +347,40 @@ def equity_flag(fit: Optional[SlopeFit], flag_threshold: float,
 
 
 # ==============================================================================
+# COARSE-SENSOR SAMPLING  (integrity rule 1 - a silent None is the worst
+#                          possible answer, and this produced one)
+# ==============================================================================
+
+def coarse_sampling_buffer_m(native_pixel_m: float,
+                             safety: float = 1.0) -> float:
+    """
+    How far to buffer a field before reducing a COARSE dataset over it.
+
+    THE BUG THIS EXISTS TO PREVENT, FOUND IN A LIVE RUN
+    Earth Engine's reduceRegion counts a pixel when the pixel's CENTRE falls
+    inside the region. Reducing ERA5-Land at its native 10-11 km over a 600 m
+    field therefore finds no pixel centre at all and returns None - not an
+    error, not a zero, a null that then travels as "growing degree days: not
+    available" for a dataset that covers the field perfectly well.
+
+    bestEffort does not help: it coarsens the scale when a region is too LARGE,
+    and does nothing when a region is too small.
+
+    Worse than failing, it fails INCONSISTENTLY. Whether a pixel centre happens
+    to land inside a small polygon depends on where the polygon sits, so some
+    fields get a value and their neighbours get None, with nothing in the output
+    to distinguish "this field has no data" from "this field is 600 m wide".
+
+    Buffering the region by one native pixel guarantees at least one centre is
+    enclosed. This does not invent resolution: the value returned is still the
+    single coarse cell covering the field, which is exactly what the dataset can
+    say about it. The honest description of the result is "the ERA5 cell
+    containing this field", and callers should say so.
+    """
+    return float(native_pixel_m) * safety
+
+
+# ==============================================================================
 # SENSOR AVAILABILITY  (integrity rule 1 - "not measured" must say WHY, because
 #                       the reason changes what the user should do next)
 # ==============================================================================

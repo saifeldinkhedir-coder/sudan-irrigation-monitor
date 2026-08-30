@@ -297,12 +297,33 @@ def advisory(field_record: dict, canal_record: Optional[dict] = None,
     items = []      # (key, ar, en)
     withheld = []
 
-    cond = (field_record or {}).get("condition", {}) or {}
+    rec = field_record or {}
+
+    # TWO RECORD SHAPES, ONE ADVISORY.
+    # The network engine nests readings under condition.indicators / .context;
+    # the agriculture engine puts them under crop_health.readings with rainfall
+    # and thermal as siblings. The first version of this function only knew the
+    # network shape, so a live farm run produced ONE advisory item and withheld
+    # the rest - reporting "no CHIRPS rainfall figure" for a record that plainly
+    # carried 228 mm. Reading both shapes is not a compatibility shim: silently
+    # withholding advice the engine had already computed is exactly the failure
+    # this platform is built against.
+    cond = rec.get("condition", {}) or {}
     ind = cond.get("indicators", {}) or {}
     ctx = cond.get("context", {}) or {}
-    water = (field_record or {}).get("water_requirement", {}) or {}
-    nutrition = (field_record or {}).get("nutrition", {}) or {}
-    ref = (field_record or {}).get("reference_provenance", {}) or {}
+    if not ind:
+        ind = (rec.get("crop_health", {}) or {}).get("readings", {}) or {}
+    if ctx.get("rainfall_mm_last_14d") is None:
+        farm_rain = rec.get("rainfall", {}) or {}
+        if farm_rain.get("last_14d_mm") is not None:
+            ctx = dict(ctx)
+            ctx["rainfall_mm_last_14d"] = farm_rain["last_14d_mm"]
+            ctx["season_rainfall_mm"] = farm_rain.get("season_mm")
+
+    water = rec.get("water_requirement", {}) or {}
+    nutrition = rec.get("nutrition", {}) or {}
+    ref = rec.get("reference_provenance", {}) or {}
+    thermal = rec.get("thermal_stress", {}) or {}
 
     # 1. Irrigation requirement - the actionable number
     if water.get("status") == "OK" and water.get("irrigation_requirement_mm"):
@@ -324,6 +345,41 @@ def advisory(field_record: dict, canal_record: Optional[dict] = None,
     elif ctx.get("reading_status") == "OK" and ctx.get("reading"):
         items.append(("stress", f"قراءة الحالة: {ctx['reading']}",
                       f"condition reading: {ctx['reading']}"))
+    else:
+        # Agriculture-engine shape: compare each reading with its own derived
+        # threshold rather than looking for a precomputed verdict string.
+        below = [name for name, key in (("النمو", "vigour"),
+                                        ("رطوبة الغطاء", "canopy_moisture"))
+                 if (ind.get(key, {}).get("status") == "OK"
+                     and ind[key].get("threshold") is not None
+                     and ind[key].get("value") is not None
+                     and ind[key]["value"] < ind[key]["threshold"])]
+        if below:
+            items.append((
+                "stress",
+                f"مؤشّرات دون عتبة الجوار: {'، '.join(below)}.",
+                "below the neighbourhood threshold: "
+                + ", ".join({"النمو": "vigour",
+                             "رطوبة الغطاء": "canopy moisture"}[b] for b in below)
+                + "."))
+        elif any(ind.get(k, {}).get("threshold") is not None
+                 for k in ("vigour", "canopy_moisture")):
+            items.append(("stress",
+                          "لا مؤشّر دون عتبة الجوار.",
+                          "no indicator below the neighbourhood threshold."))
+
+    # 2b. Thermal - the earliest signal, and only meaningful against neighbours
+    if thermal.get("status") == "OK" and thermal.get("difference_c") is not None:
+        d = thermal["difference_c"]
+        if d > 1.0:
+            items.append((
+                "thermal",
+                f"حقلك أدفأ بـ{d:.1f}°م من الأرض المحيطة — والحرارة تسبق تدهور "
+                "النموّ المرئي بأيام.",
+                f"your field is {d:.1f} degC warmer than the surrounding land — "
+                "temperature moves days before visible vigour does."))
+    elif thermal.get("status") not in (None, "OK"):
+        withheld.append(("thermal", thermal.get("reason", "not computed")))
 
     # 3. Rainfall context - never a stress statement without it
     rain = ctx.get("rainfall_mm_last_14d")

@@ -72,6 +72,12 @@ HEAT_STRESS_C = {"wheat": 32.0, "sorghum": 38.0, "cotton": 35.0,
 GDD_BASE_C = {"wheat": 4.0, "sorghum": 10.0, "cotton": 15.5,
               "groundnut": 10.0, "default": 10.0}
 
+# Native pixel sizes of the coarse datasets. NOT arbitrary - these are the
+# published resolutions, and they set the smallest region that can be
+# reduced without returning a silent None.
+ERA5_NATIVE_M = 11000
+CHIRPS_NATIVE_M = 5500
+
 DRY_SPELL_DAYS = 10             # consecutive days below the rain floor (ARBITRARY)
 DRY_SPELL_RAIN_MM = 1.0         # rain floor (ARBITRARY)
 
@@ -271,13 +277,17 @@ def growing_degree_days(aoi, start: str, end: str, crop: str = "default"):
     GDD explains why the same crop on two planting dates behaves differently."""
     base = GDD_BASE_C.get(crop, GDD_BASE_C["default"])
     try:
+        # Buffered to one native ERA5 pixel: reduceRegion counts a pixel only
+        # when its CENTRE falls inside the region, so a 10 km reduction over a
+        # 600 m field silently returns None. See dl.coarse_sampling_buffer_m.
+        region = aoi.buffer(dl.coarse_sampling_buffer_m(ERA5_NATIVE_M))
         col = (ee.ImageCollection("ECMWF/ERA5_LAND/DAILY_AGGR")
-               .filterBounds(aoi).filterDate(start, end).select("temperature_2m"))
+               .filterBounds(region).filterDate(start, end).select("temperature_2m"))
         if col.size().getInfo() == 0:
             return None
         total = col.map(lambda i: i.subtract(273.15).subtract(base).max(0).rename("gdd")
                         ).sum().reduceRegion(
-            reducer=ee.Reducer.mean(), geometry=aoi, scale=10000,
+            reducer=ee.Reducer.mean(), geometry=region, scale=ERA5_NATIVE_M,
             maxPixels=1e9, bestEffort=True).getInfo()
         return total.get("gdd")
     except Exception:
@@ -288,12 +298,13 @@ def heat_stress_days(aoi, start: str, end: str, crop: str = "default"):
     """Days on which maximum air temperature exceeded the crop's stress limit."""
     limit = HEAT_STRESS_C.get(crop, HEAT_STRESS_C["default"])
     try:
+        region = aoi.buffer(dl.coarse_sampling_buffer_m(ERA5_NATIVE_M))
         col = (ee.ImageCollection("ECMWF/ERA5_LAND/DAILY_AGGR")
-               .filterBounds(aoi).filterDate(start, end).select("temperature_2m_max"))
+               .filterBounds(region).filterDate(start, end).select("temperature_2m_max"))
         if col.size().getInfo() == 0:
             return None
         total = col.map(lambda i: i.subtract(273.15).gt(limit)).sum().reduceRegion(
-            reducer=ee.Reducer.mean(), geometry=aoi, scale=10000,
+            reducer=ee.Reducer.mean(), geometry=region, scale=ERA5_NATIVE_M,
             maxPixels=1e9, bestEffort=True).getInfo()
         v = total.get("temperature_2m_max")
         return int(round(v)) if v is not None else None
@@ -313,14 +324,15 @@ def dry_spells(aoi, start: str, end: str) -> Optional[dict]:
     getInfo per day - up to ~400 blocking round-trips for one canal.)
     """
     try:
+        region = aoi.buffer(dl.coarse_sampling_buffer_m(CHIRPS_NATIVE_M))
         col = (ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
-               .filterBounds(aoi).filterDate(start, end))
+               .filterBounds(region).filterDate(start, end))
         if col.size().getInfo() == 0:
             return None
 
         def day_mean(img):
             v = img.reduceRegion(
-                reducer=ee.Reducer.mean(), geometry=aoi, scale=5000,
+                reducer=ee.Reducer.mean(), geometry=region, scale=CHIRPS_NATIVE_M,
                 maxPixels=1e8, bestEffort=True).get("precipitation")
             return ee.Feature(None, {"p": v})
 
