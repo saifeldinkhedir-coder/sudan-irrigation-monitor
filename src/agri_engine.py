@@ -87,6 +87,13 @@ NEIGHBOURHOOD_BUFFER_M = 3000
 MIN_S2_SCENES = 3
 MIN_THERMAL_SCENES = 1
 
+# Phenology. All ARBITRARY: the half-amplitude green-up convention is
+# common and carries no physical claim, and the amplitude floor is the
+# point below which a series has no season in it to find.
+MIN_SCENES_FOR_PHENOLOGY = 8
+PHENOLOGY_GREENUP_FRACTION = 0.5
+PHENOLOGY_MIN_AMPLITUDE = 0.05
+
 # Rainfall window for the cause-separating context.
 RAIN_WINDOW_DAYS = 14
 RAIN_LOW_MM = 5.0            # ARBITRARY
@@ -478,6 +485,77 @@ def health_series(field_geom, start: str, end: str) -> dict:
         return {"status": "NOT AVAILABLE", "reason": str(e)[:140]}
 
 
+def _series_day_offsets(series: dict, start: str):
+    """Turn the dated NDVI series into (day offsets from season start, values).
+
+    Returns (None, None) when there is no usable series, so the caller falls
+    back to the labelled approximate ETc rather than silently passing empty
+    lists into the integral."""
+    if not series or series.get("status") != "OK":
+        return None, None
+    s0 = datetime.strptime(start, "%Y-%m-%d")
+    days, values = [], []
+    for d, v in zip(series.get("dates", []), series.get("ndvi", [])):
+        if v is None:
+            continue
+        days.append((datetime.strptime(d, "%Y-%m-%d") - s0).days)
+        values.append(v)
+    return (days, values) if len(days) >= 2 else (None, None)
+
+
+def phenology(days, ndvi) -> dict:
+    """
+    When the crop greened up, when it peaked, and how long it lasted.
+
+    For a farmer this is often more useful than how green it got: a late
+    green-up or a short season explains a poor result in a way a single vigour
+    number does not, and it is the figure that separates "planted late" from
+    "planted on time and then starved".
+
+    Refuses on a series too short or too flat to contain a season, rather than
+    reporting the day of the highest value in a noisy series as if it meant
+    something.
+    """
+    pts = sorted((float(d), float(v)) for d, v in zip(days, ndvi) if v is not None)
+    if len(pts) < MIN_SCENES_FOR_PHENOLOGY:
+        return {"status": "NOT AVAILABLE",
+                "reason": (f"only {len(pts)} usable scenes; "
+                           f"{MIN_SCENES_FOR_PHENOLOGY} needed before a "
+                           "green-up day means anything"),
+                "basis": "ARBITRARY minimum"}
+    vs = [v for _, v in pts]
+    lo, hi = min(vs), max(vs)
+    amplitude = hi - lo
+    if amplitude < PHENOLOGY_MIN_AMPLITUDE:
+        return {"status": "NOT AVAILABLE",
+                "amplitude": round(amplitude, 4),
+                "reason": (f"seasonal NDVI amplitude {round(amplitude, 3)} is too "
+                           "flat to contain a green-up. That is a statement "
+                           "about this field's vegetation, not a data failure - "
+                           "it may simply not have been cropped."),
+                "basis": f"ARBITRARY floor of {PHENOLOGY_MIN_AMPLITUDE}"}
+
+    target = lo + PHENOLOGY_GREENUP_FRACTION * amplitude
+    greenup = next((d1 for (d0, v0), (d1, v1) in zip(pts, pts[1:])
+                    if v0 < target <= v1), None)
+    peak_day, peak_val = max(pts, key=lambda p: p[1])
+    above = [d for d, v in pts if v >= target]
+    return {
+        "status": "OK",
+        "greenup_day": greenup,
+        "peak_day": peak_day,
+        "peak_ndvi": round(peak_val, 4),
+        "season_length_days": (max(above) - min(above)) if len(above) >= 2 else None,
+        "amplitude": round(amplitude, 4),
+        "n_scenes": len(pts),
+        "basis": (f"ARBITRARY: green-up is the first crossing of "
+                  f"{PHENOLOGY_GREENUP_FRACTION} of the seasonal amplitude. "
+                  "Days are counted from the start of the season window, and "
+                  "cloud gaps mean the true crossing may fall earlier than the "
+                  "first scene that shows it."),
+    }
+
+
 # ==============================================================================
 # THE FARMER'S QUESTION: WHICH FIELD FIRST
 # ==============================================================================
@@ -668,18 +746,27 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
             "rainfall": rainfall_context(geom, start, end),
             "soil": soil_texture(geom),
         }
+        # The dated canopy series is computed first because the water
+        # requirement needs it: ETc is the daily sum of Kcb(t) * ET0(t), and
+        # without dates that integral collapses to the biased season-mean
+        # shortcut it exists to replace.
+        series = health_series(geom, start, end) if with_series else {}
         if with_series:
-            rec["series"] = health_series(geom, start, end)
+            rec["series"] = series
 
         if agro is not None:
             v = vig.get("value") if vig.get("status") == "OK" else None
+            days, values = _series_day_offsets(series, start)
             try:
                 rec["water_requirement"] = agro.crop_water_requirement(
-                    geom, start, end, v)
+                    geom, start, end, v,
+                    ndvi_days=days, ndvi_values=values)
             except Exception as e:
                 rec["water_requirement"] = {"status": "NOT AVAILABLE",
                                             "reason": str(e)[:140]}
             rec["yield_estimate"] = agro.yield_estimate(v, crop)
+            if days and values:
+                rec["phenology"] = phenology(days, values)
 
         if ncg is not None:
             try:

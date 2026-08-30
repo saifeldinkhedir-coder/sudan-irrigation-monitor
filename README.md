@@ -54,7 +54,7 @@ geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
   canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
                                against what the engine requires, before a run.
-tests/                         335 tests; run with no Earth Engine.
+tests/                         368 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -125,7 +125,7 @@ one is a hazard rather than a missing nicety.
 pip install -r requirements.txt        # earthengine-api, numpy, streamlit, pytest
 
 # tests need NO Earth Engine and no auth:
-pytest -q                              # 335 tests
+pytest -q                              # 368 tests
 
 # run the FULL pipeline offline against the mock backend (no auth, no quota):
 python - <<'PY'
@@ -223,7 +223,7 @@ vertical noise, so a DEM would dress an assumption up as a measurement.
 
 ## Status — honest
 
-**Logic tested, plumbing tested, measurements unvalidated.** All 335 tests pass
+**Logic tested, plumbing tested, measurements unvalidated.** All 368 tests pass
 with no Earth Engine. The mock backend runs the whole `analyse()` pipeline
 offline, so the wiring is verified — but the mock returns synthetic values, so it
 proves the pipeline is *wired* correctly, never that the *measurements* are
@@ -308,3 +308,23 @@ Fields are ranked by which needs attention first. That is an **ordering, not a
 score**: no calibrated health scale exists, and one is not invented. Fields that
 could not be measured are set aside rather than sinking to the bottom of the
 list, because unmeasured is neither healthy nor sick.
+
+### Crop water need is an integral, not a product of averages
+
+ETc is the daily sum of **Kcb(t) × ET0(t)**, not season-mean NDVI turned into one
+coefficient and multiplied by total ET0. The shortcut is exact only when canopy
+and ET0 are uncorrelated across the season, and in an irrigated Sudanese season
+they are strongly correlated in the worst direction: the canopy is near zero
+during the hottest, highest-ET0 weeks before planting and after harvest.
+
+Measured on a live Gezira field, 2022/23: the shortcut gave **385 mm**, the
+integral gives **305 mm** — the shortcut overstated by 21%, because it charged
+the bare-soil weeks with the crop's coefficient. A synthetic season built to
+isolate the effect reproduces the same direction and magnitude.
+
+Sparse scenes are interpolated to daily steps, but **gaps longer than 30 days are
+left empty rather than bridged**, nothing is extrapolated before the first or
+after the last observation, and if less than half the season ends up covered the
+seasonal total is refused rather than scaled up — the missing days are not a
+random sample, they are the cloudy ones. A caller with no dated series still gets
+a number, labelled `APPROXIMATE` in the output and flagged in the app.

@@ -170,6 +170,9 @@ def _render_field(rec):
               "Sensor": r["sensor"], "Measured at": r["scale"]}
              for r in rows],
             width="stretch", hide_index=True)
+        note = D.etc_method_note(rec)
+        if note:
+            st.caption(note)
         missing = [r for r in rows if r.get("reason")]
         for r in missing:
             st.caption(f"{r['variable']}: {r['reason']}")

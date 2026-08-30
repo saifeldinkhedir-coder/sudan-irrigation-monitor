@@ -219,3 +219,117 @@ class TestForecastWindow:
         src = inspect.getsource(ag)
         i = src.index("RECENT_RUNS_DAYS = ")
         assert "ARBITRARY" in src[max(0, i - 400):i]
+
+
+# --- ETc as an integral, not a product of means --------------------------------
+
+class TestInterpolation:
+    def test_a_sparse_series_is_filled_between_observations(self):
+        r = ag.interpolate_to_daily([0, 10], [0.2, 0.4], 20)
+        assert r["daily"][0] == 0.2
+        assert abs(r["daily"][5] - 0.3) < 1e-9
+        assert r["daily"][10] == 0.4
+
+    def test_nothing_is_extrapolated_past_the_last_observation(self):
+        r = ag.interpolate_to_daily([0, 10], [0.2, 0.4], 20)
+        assert r["daily"][15] is None
+        assert r["daily"][19] is None
+
+    def test_a_long_gap_is_left_empty_rather_than_bridged(self):
+        """Joining two observations six weeks apart invents a canopy
+        trajectory nobody saw, during the part of the season - green-up or
+        senescence - where a straight line is least like the truth."""
+        r = ag.interpolate_to_daily([0, 60], [0.1, 0.8], 70, max_gap_days=30)
+        assert all(v is None for v in r["daily"])
+        assert r["filled_days"] == 0
+
+    def test_the_gap_limit_is_declared_arbitrary(self):
+        assert "ARBITRARY" in ag.interpolate_to_daily([0, 5], [0.2, 0.3], 10)["basis"]
+
+    def test_one_observation_cannot_be_interpolated(self):
+        r = ag.interpolate_to_daily([3], [0.5], 10)
+        assert all(v is None for v in r["daily"])
+        assert "fewer than two" in r["reason"]
+
+    def test_coverage_is_reported(self):
+        r = ag.interpolate_to_daily([0, 10], [0.2, 0.4], 20)
+        assert 0 < r["coverage"] < 1
+
+
+class TestEtcIntegral:
+    def _opposed_season(self):
+        """Canopy low when ET0 is high - the real Sudanese pattern, and the
+        case where the season-mean shortcut is worst."""
+        et0 = [8.0] * 60 + [5.0] * 120 + [8.0] * 60
+        ndvi = [0.05] * 60 + [0.75] * 120 + [0.05] * 60
+        return et0, ndvi
+
+    def test_the_integral_differs_materially_from_the_flat_method(self):
+        et0, ndvi = self._opposed_season()
+        flat = ag.kcb_from_ndvi(sum(ndvi) / len(ndvi))["kcb"] * sum(et0)
+        integral = ag.etc_time_integrated(et0, ndvi)["etc_mm"]
+        assert abs(integral - flat) / flat > 0.15, (
+            "if these agree the test season is not exercising the bias")
+
+    def test_the_flat_method_overstates_when_canopy_and_et0_oppose(self):
+        et0, ndvi = self._opposed_season()
+        flat = ag.kcb_from_ndvi(sum(ndvi) / len(ndvi))["kcb"] * sum(et0)
+        assert ag.etc_time_integrated(et0, ndvi)["etc_mm"] < flat
+
+    def test_the_two_methods_agree_when_et0_is_flat(self):
+        """The shortcut is only exact when ET0 does not vary; this pins that."""
+        et0 = [6.0] * 200
+        ndvi = [0.1] * 100 + [0.7] * 100
+        flat = ag.kcb_from_ndvi(sum(ndvi) / len(ndvi))["kcb"] * sum(et0)
+        integral = ag.etc_time_integrated(et0, ndvi)["etc_mm"]
+        assert abs(integral - flat) < 1.0
+
+    def test_missing_days_contribute_nothing_and_are_counted(self):
+        r = ag.etc_time_integrated([5.0, 5.0, None, 5.0], [0.5, 0.5, 0.5, None])
+        assert r["days_used"] == 2
+        assert r["days_in_window"] == 4
+
+    def test_thin_coverage_refuses_the_total_rather_than_scaling_it_up(self):
+        et0 = [6.0] * 100
+        ndvi = [0.5] * 20 + [None] * 80
+        r = ag.etc_time_integrated(et0, ndvi, min_coverage=0.5)
+        assert r["status"] == "NOT AVAILABLE"
+        assert r["etc_mm"] is None
+        assert "not a random sample" in r["coverage_basis"]
+
+    def test_the_method_is_named_in_the_output(self):
+        r = ag.etc_time_integrated([6.0] * 10, [0.5] * 10)
+        assert "not the product of the two season means" in r["method"]
+
+    def test_the_weighted_mean_kcb_is_reported_for_checking(self):
+        et0, ndvi = self._opposed_season()
+        r = ag.etc_time_integrated(et0, ndvi)
+        assert r["kcb_et0_weighted_mean"] is not None
+        assert 0 <= r["kcb_et0_weighted_mean"] <= ag.KCB_MAX
+
+
+class TestMethodLabels:
+    """The two ETc methods are named constants, not strings buried in the
+    source. An earlier version of this test grepped the function body and
+    failed because the sentence was split across two source lines - testing
+    prose again rather than behaviour."""
+
+    def test_the_fallback_announces_that_it_is_approximate(self):
+        assert ag.ETC_METHOD_APPROXIMATE.startswith("APPROXIMATE")
+        assert "Supply a dated NDVI series" in ag.ETC_METHOD_APPROXIMATE
+
+    def test_the_fallback_says_when_it_is_wrong_and_why(self):
+        assert "uncorrelated" in ag.ETC_METHOD_APPROXIMATE
+        assert "the bare weeks are the hottest" in ag.ETC_METHOD_APPROXIMATE
+
+    def test_the_integral_is_labelled_as_the_integral(self):
+        assert "the integral" in ag.ETC_METHOD_INTEGRAL
+        assert "not the product of the two season means" in ag.ETC_METHOD_INTEGRAL
+
+    def test_the_integral_result_carries_that_label(self):
+        r = ag.etc_time_integrated([6.0] * 10, [0.5] * 10)
+        assert r["method"] == ag.ETC_METHOD_INTEGRAL
+
+    def test_the_two_labels_are_distinguishable(self):
+        assert ag.ETC_METHOD_INTEGRAL != ag.ETC_METHOD_APPROXIMATE
+        assert "APPROXIMATE" not in ag.ETC_METHOD_INTEGRAL

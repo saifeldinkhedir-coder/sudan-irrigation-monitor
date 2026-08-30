@@ -202,16 +202,38 @@ def variables_table(record: dict) -> list:
                      "verdict": f"{wr.get('et0_mm_per_day')} mm/day",
                      "sensor": "ERA5-Land, FAO-56", "scale": "11 km"})
         if wr.get("etc_mm") is not None:
+            approx = str(wr.get("etc_method", "")).startswith("APPROXIMATE")
             rows.append({"variable": "Crop water NEEDED (ETc)",
                          "value": f"{wr.get('etc_mm')} mm",
                          "threshold": f"Kcb {wr.get('kcb')}",
-                         "verdict": "NEEDED, not received",
+                         "verdict": ("NEEDED, not received"
+                                     + (" — APPROXIMATE method" if approx else "")),
                          "sensor": "ERA5-Land + Sentinel-2", "scale": "11 km"})
     else:
         rows.append({"variable": "Crop water NEEDED (ETc)",
                      "value": "not available", "threshold": "—", "verdict": "—",
                      "sensor": "ERA5-Land", "scale": "11 km",
                      "reason": wr.get("reason", "")})
+
+    ph = record.get("phenology") or {}
+    if ph.get("status") == "OK":
+        rows.append({"variable": "Green-up day",
+                     "value": f"day {int(ph['greenup_day'])} of the season"
+                              if ph.get("greenup_day") is not None else "—",
+                     "threshold": "—",
+                     "verdict": f"peak on day {int(ph['peak_day'])}",
+                     "sensor": "Sentinel-2 series", "scale": "10 m"})
+        rows.append({"variable": "Season length",
+                     "value": ("—" if ph.get("season_length_days") is None
+                               else f"{int(ph['season_length_days'])} days"),
+                     "threshold": "—",
+                     "verdict": f"peak NDVI {ph.get('peak_ndvi')}",
+                     "sensor": "Sentinel-2 series", "scale": "10 m"})
+    else:
+        rows.append({"variable": "Green-up / season length",
+                     "value": "not available", "threshold": "—", "verdict": "—",
+                     "sensor": "Sentinel-2 series", "scale": "10 m",
+                     "reason": ph.get("reason", "no phenology computed")})
 
     clim = record.get("climate") or {}
     for key, label, unit in (("growing_degree_days", "Growing degree days", ""),
@@ -251,6 +273,24 @@ def variables_table(record: dict) -> list:
         "sensor": "OpenLandMap model", "scale": "250 m"})
 
     return rows
+
+
+def etc_method_note(record: dict) -> Optional[str]:
+    """Say which ETc method produced the number, because the two differ by
+    around a fifth on a real Gezira field and the difference is systematic,
+    not noise."""
+    wr = record.get("water_requirement") or {}
+    method = wr.get("etc_method")
+    if not method:
+        return None
+    cs = wr.get("canopy_series") or {}
+    if str(method).startswith("APPROXIMATE"):
+        return "⚠️ " + method
+    cov = cs.get("coverage")
+    return (f"ETc is the daily integral of Kcb(t) × ET0(t) over "
+            f"{cs.get('observed_days', '?')} cloud-free scenes, covering "
+            f"{round(100 * cov)}% of the season."
+            if cov is not None else method)
 
 
 def nutrition_line(record: dict) -> dict:

@@ -300,3 +300,51 @@ def test_the_demo_report_says_the_boundaries_are_invented():
     assert "belong to no farm" in r["note"]
     assert "invented" in r["note"]
     assert "مخترعة" in r["note_ar"]
+
+
+class TestEtcMethodSurfacing:
+    """The two ETc methods differ by about a fifth on a real field, and the
+    difference is systematic rather than noise, so the app must say which one
+    produced the number rather than showing a bare millimetre figure."""
+
+    def test_the_integral_note_reports_scenes_and_coverage(self):
+        note = D.etc_method_note({"water_requirement": {
+            "etc_method": "sum over days of Kcb(NDVI on that day) * ET0",
+            "canopy_series": {"observed_days": 75, "coverage": 0.832}}})
+        assert "daily integral" in note
+        assert "75" in note and "83%" in note
+
+    def test_the_approximate_method_is_flagged_with_a_warning(self):
+        note = D.etc_method_note({"water_requirement": {
+            "etc_method": "APPROXIMATE: season-mean NDVI ..."}})
+        assert note.startswith("⚠️")
+        assert "APPROXIMATE" in note
+
+    def test_the_table_marks_an_approximate_etc_in_its_verdict(self):
+        rows = D.variables_table({"water_requirement": {
+            "status": "OK", "et0_mm": 1792.0, "et0_mm_per_day": 6.6,
+            "etc_mm": 385.0, "kcb": 0.215,
+            "etc_method": "APPROXIMATE: season-mean NDVI ..."}})
+        row = next(r for r in rows if "NEEDED" in r["variable"])
+        assert "APPROXIMATE method" in row["verdict"]
+
+    def test_no_water_requirement_yields_no_note(self):
+        assert D.etc_method_note({}) is None
+
+
+class TestPhenologyRows:
+    def test_phenology_appears_when_computed(self):
+        rows = D.variables_table({"phenology": {
+            "status": "OK", "greenup_day": 75.0, "peak_day": 210.0,
+            "peak_ndvi": 0.519, "season_length_days": 195.0}})
+        labels = {r["variable"] for r in rows}
+        assert "Green-up day" in labels
+        assert "Season length" in labels
+
+    def test_a_flat_field_says_why_there_is_no_phenology(self):
+        rows = D.variables_table({"phenology": {
+            "status": "NOT AVAILABLE",
+            "reason": "amplitude too flat; it may simply not have been cropped"}})
+        row = next(r for r in rows if "Green-up" in r["variable"])
+        assert row["value"] == "not available"
+        assert "not have been cropped" in row["reason"]

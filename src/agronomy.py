@@ -96,6 +96,18 @@ FORECAST_DAYS = 7
 # run without scanning the archive. ARBITRARY.
 RECENT_RUNS_DAYS = 3
 
+# The two ETc methods, named so callers and tests can check which was used
+# without reading the source.
+ETC_METHOD_INTEGRAL = (
+    "sum over days of Kcb(NDVI on that day) * ET0 on that day - the integral, "
+    "not the product of the two season means")
+ETC_METHOD_APPROXIMATE = (
+    "APPROXIMATE: season-mean NDVI turned into one Kcb and multiplied by total "
+    "ET0. This equals the true integral only if canopy and ET0 are uncorrelated "
+    "across the season, and in an irrigated season here they are not - the bare "
+    "weeks are the hottest. Supply a dated NDVI series to get the integral "
+    "instead.")
+
 _ERA5_DAILY = "ECMWF/ERA5_LAND/DAILY_AGGR"
 _GFS = "NOAA/GFS0P25"
 
@@ -203,6 +215,135 @@ def kcb_from_ndvi(ndvi: Optional[float]) -> Optional[dict]:
                   "coefficients from other regions and crops, clamped to "
                   f"[{KCB_MIN}, {KCB_MAX}]. Not validated in Sudan."),
     }
+
+
+def interpolate_to_daily(sample_days: Sequence[float],
+                         sample_values: Sequence[Optional[float]],
+                         n_days: int,
+                         max_gap_days: int = 30) -> dict:
+    """
+    Put a sparse satellite series onto daily steps by linear interpolation.
+
+    WHY THIS NEEDS A GAP LIMIT
+    Sentinel-2 gives a usable scene every few days at best, and far less in a
+    cloudy month. Joining two observations six weeks apart with a straight line
+    invents a canopy trajectory nobody saw - and during green-up or senescence
+    the canopy is doing exactly the thing a straight line cannot represent.
+
+    So days inside a gap longer than `max_gap_days` are returned as None rather
+    than interpolated, and the caller reports how much of the season was
+    genuinely bridged. ARBITRARY: 30 days.
+
+    Days before the first observation and after the last are not extrapolated at
+    all. Extrapolating a canopy is guessing about the part of the season nobody
+    watched.
+    """
+    pairs = sorted((int(d), float(v)) for d, v in zip(sample_days, sample_values)
+                   if v is not None)
+    daily = [None] * n_days
+    if len(pairs) < 2:
+        return {"daily": daily, "interpolated_days": 0, "observed_days": len(pairs),
+                "gap_days": n_days,
+                "reason": "fewer than two usable observations"}
+
+    interpolated = 0
+    for (d0, v0), (d1, v1) in zip(pairs, pairs[1:]):
+        span = d1 - d0
+        if span <= 0 or span > max_gap_days:
+            continue
+        for d in range(max(0, d0), min(n_days, d1 + 1)):
+            t = (d - d0) / span if span else 0.0
+            daily[d] = v0 + t * (v1 - v0)
+            interpolated += 1
+
+    filled = sum(1 for v in daily if v is not None)
+    return {
+        "daily": daily,
+        "observed_days": len(pairs),
+        "filled_days": filled,
+        "gap_days": n_days - filled,
+        "coverage": round(filled / n_days, 3) if n_days else 0.0,
+        "max_gap_days": max_gap_days,
+        "basis": (f"ARBITRARY: gaps longer than {max_gap_days} days are left "
+                  "empty rather than bridged, and nothing is extrapolated "
+                  "before the first or after the last observation."),
+    }
+
+
+def etc_time_integrated(et0_daily: Sequence[Optional[float]],
+                        ndvi_daily: Sequence[Optional[float]],
+                        min_coverage: float = 0.5) -> dict:
+    """
+    ETc as the daily sum of Kcb(t) * ET0(t) - the correct integral.
+
+    WHY THE SEASON-MEAN SHORTCUT IS WRONG, NOT MERELY ROUGH
+    An earlier version took the season's MEAN NDVI, turned it into a single Kcb,
+    and multiplied it by total ET0. That is only equal to the true integral when
+    NDVI and ET0 are uncorrelated across the season, and in an irrigated
+    Sudanese season they are strongly correlated in the worst direction: the
+    canopy is near zero during the hottest, highest-ET0 weeks before planting
+    and after harvest, and near its peak during a cooler part of the window.
+
+    Measured on a live Gezira field: mean NDVI 0.215 gave Kcb 0.215 and
+    ETc 385 mm from ET0 1792 mm. Weighting each day by that day's canopy gives
+    a materially different number, because the shortcut charges the bare-soil
+    weeks with the crop's coefficient and the cropped weeks with the bare
+    soil's.
+
+    Days where either input is missing contribute nothing and are counted, so
+    the caller can see how much of the season the figure actually rests on. If
+    the covered fraction falls below `min_coverage` the total is refused: a
+    seasonal water requirement computed over a third of the season is not a
+    seasonal water requirement.
+    """
+    n = min(len(et0_daily), len(ndvi_daily))
+    etc, et0_used, used_days = 0.0, 0.0, 0
+    kcb_weighted = 0.0
+    for i in range(n):
+        e, v = et0_daily[i], ndvi_daily[i]
+        if e is None or v is None:
+            continue
+        k = kcb_from_ndvi(v)
+        if k is None:
+            continue
+        etc += k["kcb"] * e
+        kcb_weighted += k["kcb"] * e
+        et0_used += e
+        used_days += 1
+
+    coverage = used_days / n if n else 0.0
+    out = {
+        "days_in_window": n,
+        "days_used": used_days,
+        "coverage": round(coverage, 3),
+        "min_coverage": min_coverage,
+        "coverage_basis": ("ARBITRARY: below this fraction of days the seasonal "
+                           "total is refused rather than scaled up, because "
+                           "the missing days are not a random sample - they are "
+                           "the cloudy ones."),
+        "method": ETC_METHOD_INTEGRAL,
+    }
+    if coverage < min_coverage:
+        out.update({
+            "status": "NOT AVAILABLE",
+            "etc_mm": None,
+            "reason": (f"only {round(100 * coverage)}% of the season had both an "
+                       "ET0 value and an interpolated canopy value; "
+                       f"{round(100 * min_coverage)}% is the minimum before a "
+                       "seasonal total is quoted"),
+        })
+        return out
+
+    out.update({
+        "status": "OK",
+        "etc_mm": round(etc, 1),
+        "et0_mm_over_used_days": round(et0_used, 1),
+        # The ET0-weighted mean Kcb. Reported so the figure can be sanity
+        # checked against the flat-mean version it replaces.
+        "kcb_et0_weighted_mean": (round(kcb_weighted / et0_used, 3)
+                                  if et0_used else None),
+    })
+    return out
 
 
 def effective_rainfall_mm(daily_rain_mm: Sequence[Optional[float]],
@@ -316,7 +457,9 @@ def _series_to_et0(series: dict) -> list:
 
 def crop_water_requirement(aoi, start: str, end: str,
                            mean_ndvi: Optional[float],
-                           daily_rain_mm: Optional[Sequence] = None) -> dict:
+                           daily_rain_mm: Optional[Sequence] = None,
+                           ndvi_days: Optional[Sequence] = None,
+                           ndvi_values: Optional[Sequence] = None) -> dict:
     """
     Seasonal crop water requirement and irrigation requirement for an area.
 
@@ -363,12 +506,50 @@ def crop_water_requirement(aoi, start: str, end: str,
                            "well-watered grass surface would transpire here."),
     }
 
+    # PREFERRED PATH: the true integral, sum of Kcb(t) * ET0(t) over days.
+    # Needs a dated NDVI series, which the agriculture engine has.
+    if ndvi_days is not None and ndvi_values is not None:
+        interp = interpolate_to_daily(ndvi_days, ndvi_values, len(et0_daily))
+        integral = etc_time_integrated(et0_daily, interp["daily"])
+        out["canopy_series"] = {k: interp[k] for k in
+                                ("observed_days", "filled_days", "gap_days",
+                                 "coverage", "max_gap_days", "basis")
+                                if k in interp}
+        out["etc_method"] = integral["method"]
+        out["etc_coverage"] = integral["coverage"]
+        if integral["status"] == "OK":
+            etc_total = integral["etc_mm"]
+            out.update({
+                "kcb": integral["kcb_et0_weighted_mean"],
+                "kcb_basis": (kcb["basis"] if kcb else "")
+                             + " Weighted by each day's ET0, not a season mean.",
+                "etc_mm": etc_total,
+                "etc_mm_per_day": round(etc_total / max(1, integral["days_used"]), 2),
+                "etc_days_used": integral["days_used"],
+                "etc_caveat": ("This is water REQUIRED, not water DELIVERED. "
+                               "Nothing in this engine measures delivery to a "
+                               "field."),
+            })
+            if daily_rain_mm is not None:
+                _attach_irrigation_requirement(out, etc_total, daily_rain_mm)
+            return out
+        # Not enough covered days: refuse the integral and say so rather than
+        # silently dropping back to the method it was written to replace.
+        out["etc_status"] = "NOT AVAILABLE"
+        out["etc_reason"] = integral["reason"]
+        out["etc_mm"] = None
+        return out
+
     if kcb is None:
         out["etc_status"] = "NOT AVAILABLE"
         out["etc_reason"] = ("no mean NDVI for this area, so no crop coefficient "
                              "and no crop water requirement")
         return out
 
+    # FALLBACK: a single season-mean Kcb times total ET0. Kept only for callers
+    # with no dated canopy series, and labelled so nobody mistakes it for the
+    # integral. It is biased whenever canopy and ET0 move together across the
+    # season, which in an irrigated Sudanese season they do.
     etc_total = et0_total * kcb["kcb"]
     out.update({
         "kcb": kcb["kcb"],
@@ -376,28 +557,36 @@ def crop_water_requirement(aoi, start: str, end: str,
         "kcb_clamped": kcb["clamped"],
         "etc_mm": round(etc_total, 1),
         "etc_mm_per_day": round(etc_total / len(usable), 2),
+        "etc_method": ETC_METHOD_APPROXIMATE,
         "etc_caveat": ("This is water REQUIRED, not water DELIVERED. Nothing in "
                        "this engine measures delivery to a field."),
     })
 
     if daily_rain_mm is not None:
-        rain = effective_rainfall_mm(daily_rain_mm)
-        deficit = max(0.0, etc_total - rain["effective_rainfall_mm"])
-        out.update({
-            "rainfall": rain,
-            "irrigation_requirement_mm": round(deficit, 1),
-            "irrigation_requirement_basis": (
-                "ETc minus effective rainfall, floored at zero. Carries NO soil "
-                "water store: a real balance needs soil texture, rooting depth "
-                "and an initial water content, none of which are inputs. The "
-                "seasonal figure is sound; any single day's figure is rough."),
-        })
+        _attach_irrigation_requirement(out, etc_total, daily_rain_mm)
     else:
         out["irrigation_requirement_mm"] = None
         out["irrigation_requirement_reason"] = (
             "no daily rainfall series supplied, so supply cannot be subtracted "
             "from demand")
     return out
+
+
+def _attach_irrigation_requirement(out: dict, etc_total: float,
+                                   daily_rain_mm: Sequence) -> None:
+    """Demand minus supply, floored at zero. Shared by both ETc paths so the
+    two cannot drift apart."""
+    rain = effective_rainfall_mm(daily_rain_mm)
+    deficit = max(0.0, etc_total - rain["effective_rainfall_mm"])
+    out.update({
+        "rainfall": rain,
+        "irrigation_requirement_mm": round(deficit, 1),
+        "irrigation_requirement_basis": (
+            "ETc minus effective rainfall, floored at zero. Carries NO soil "
+            "water store: a real balance needs soil texture, rooting depth "
+            "and an initial water content, none of which are inputs. The "
+            "seasonal figure is sound; any single day's figure is rough."),
+    })
 
 
 def forecast_7day(aoi, days: int = FORECAST_DAYS, scale: int = 27830) -> dict:

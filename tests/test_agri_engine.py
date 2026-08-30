@@ -228,3 +228,61 @@ class TestFarmReport:
         assert "100 m" in sensors["Landsat 8/9 thermal"]
         assert "28 km" in sensors["NOAA GFS"]
         assert "250 m" in sensors["OpenLandMap"]
+
+
+# --- phenology ----------------------------------------------------------------
+
+class TestPhenology:
+    def _season(self):
+        import math
+        days = list(range(0, 270, 10))
+        ndvi = [0.10 + 0.60 * math.exp(-((d - 140) / 45) ** 2) for d in days]
+        return days, ndvi
+
+    def test_a_clean_season_yields_greenup_peak_and_length(self):
+        days, ndvi = self._season()
+        p = ag.phenology(days, ndvi)
+        assert p["status"] == "OK"
+        assert p["greenup_day"] is not None
+        assert p["peak_day"] == 140.0
+        assert p["season_length_days"] > 0
+
+    def test_too_few_scenes_is_refused_not_guessed(self):
+        p = ag.phenology([0, 10, 20], [0.2, 0.6, 0.3])
+        assert p["status"] == "NOT AVAILABLE"
+        assert "usable scenes" in p["reason"]
+
+    def test_a_flat_field_says_it_may_not_have_been_cropped(self):
+        days = list(range(0, 270, 10))
+        p = ag.phenology(days, [0.20] * len(days))
+        assert p["status"] == "NOT AVAILABLE"
+        assert "not a data failure" in p["reason"]
+        assert "may simply not have been cropped" in p["reason"]
+
+    def test_the_convention_is_declared_arbitrary(self):
+        days, ndvi = self._season()
+        assert "ARBITRARY" in ag.phenology(days, ndvi)["basis"]
+
+    def test_cloud_gaps_are_admitted_in_the_basis(self):
+        days, ndvi = self._season()
+        assert "cloud gaps" in ag.phenology(days, ndvi)["basis"]
+
+
+class TestSeriesOffsets:
+    def test_dates_become_day_offsets_from_the_season_start(self):
+        series = {"status": "OK",
+                  "dates": ["2022-07-01", "2022-07-11", "2022-08-10"],
+                  "ndvi": [0.2, 0.3, 0.5]}
+        days, values = ag._series_day_offsets(series, "2022-07-01")
+        assert days == [0, 10, 40]
+        assert values == [0.2, 0.3, 0.5]
+
+    def test_a_missing_series_yields_none_so_the_caller_falls_back(self):
+        assert ag._series_day_offsets({}, "2022-07-01") == (None, None)
+        assert ag._series_day_offsets(
+            {"status": "NOT AVAILABLE"}, "2022-07-01") == (None, None)
+
+    def test_one_usable_point_is_not_enough_for_an_integral(self):
+        series = {"status": "OK", "dates": ["2022-07-01", "2022-07-11"],
+                  "ndvi": [0.2, None]}
+        assert ag._series_day_offsets(series, "2022-07-01") == (None, None)
