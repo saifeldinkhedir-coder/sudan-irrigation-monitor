@@ -54,7 +54,7 @@ geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
   canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
                                against what the engine requires, before a run.
-tests/                         402 tests; run with no Earth Engine.
+tests/                         426 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -125,7 +125,7 @@ one is a hazard rather than a missing nicety.
 pip install -r requirements.txt        # earthengine-api, numpy, streamlit, pytest
 
 # tests need NO Earth Engine and no auth:
-pytest -q                              # 402 tests
+pytest -q                              # 426 tests
 
 # run the FULL pipeline offline against the mock backend (no auth, no quota):
 python - <<'PY'
@@ -223,7 +223,7 @@ vertical noise, so a DEM would dress an assumption up as a measurement.
 
 ## Status — honest
 
-**Logic tested, plumbing tested, measurements unvalidated.** All 402 tests pass
+**Logic tested, plumbing tested, measurements unvalidated.** All 426 tests pass
 with no Earth Engine. The mock backend runs the whole `analyse()` pipeline
 offline, so the wiring is verified — but the mock returns synthetic values, so it
 proves the pipeline is *wired* correctly, never that the *measurements* are
@@ -390,3 +390,43 @@ and neighbourhood is suppressed by resolution rather than measured — the same
 class of error as a stress threshold a field sets for itself. The engine reports
 how many pixels across the field is and whether that is enough, rather than
 leaving the reader to work it out from a suspiciously round zero.
+
+### Fixes to the redesign itself
+
+The first version of the styled app traded away three things it should not have,
+and this pass takes them back.
+
+**No webfont.** It pulled Inter and Noto Sans Arabic from Google Fonts on every
+page load — a network dependency on the least reliable part of a Sudanese field
+office's setup, and a request to a third party every time a farmer opens their
+own crop data. Replaced with font stacks that reach a good Arabic face on every
+platform this realistically runs on (Segoe UI, SF Arabic, Noto Sans Arabic,
+Tahoma). Nothing is downloaded and nothing is bundled; a test asserts the
+stylesheet fetches nothing.
+
+**No brittle selectors.** It styled `[class*="css"]`, which matches Streamlit's
+generated class names — they change between releases, so that selector was a
+promise to break on the next upgrade. Everything is now scoped to this app's own
+classes or to a documented `data-testid`; if a future release renames that id the
+layout loosens rather than breaks.
+
+**Sorting and export back.** `st.dataframe` gave sorting and a CSV download for
+free, and the styled table replaced it because a dataframe cannot colour a
+below-threshold reading or mark an unmeasured row. Both now coexist: the styled
+table by default, a sortable one behind a toggle that states what it cannot show,
+and a CSV export that includes the *reason* column — the most useful cell on an
+unavailable row, and the one a screenshot loses.
+
+**Translated at source, not afterwards.** Cells were generated in English and
+translated by matching the generated text. That match breaks the moment the
+engine rewords anything, and it breaks by leaving English inside an Arabic table
+rather than by raising — the worst way for a translation to fail. `variables_table`
+now generates in the requested language, engine vocabularies (thermal readings,
+season verdicts, soil textures, condition bands) translate by lookup, and an
+unrecognised value passes through verbatim so something new is visible rather
+than blank. A test fails if any English phrase appears in the Arabic table.
+
+**Thermal says when a field is too small for it.** Below about two 100 m pixels
+across, a field shares most of them with its own surroundings, so the difference
+between the two is suppressed by resolution rather than measured. The row now
+carries that rather than letting a suspiciously round zero read as a finding.

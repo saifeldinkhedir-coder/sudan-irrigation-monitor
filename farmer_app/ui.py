@@ -48,19 +48,39 @@ STATUS_HEX = {
     "unmeasured": "#828287",
 }
 
+# Font stacks, NOT a webfont import.
+#
+# The first version pulled Inter and Noto Sans Arabic from Google Fonts with an
+# @import. That is a network dependency on every page load, and this tool is for
+# field offices in Sudan where the connection is the least reliable part of the
+# system. It also sends a request to a third party every time a farmer opens
+# their own crop data, which is not something to do casually.
+#
+# These stacks reach a good Arabic face on every platform this will realistically
+# run on - Segoe UI on Windows, SF Arabic on macOS and iOS, Noto Sans Arabic on
+# Linux and Android - and fall back to Tahoma, which has covered Arabic on every
+# Windows since 2000. Nothing is downloaded and nothing is bundled.
+SANS = ("system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', "
+        "Arial, sans-serif")
+SANS_AR = ("'Segoe UI', 'SF Arabic', 'Noto Sans Arabic', 'Noto Naskh Arabic', "
+           "'Geeza Pro', Tahoma, system-ui, sans-serif")
+
 CSS = f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap');
+/* Scoped to this app's own classes.
+   An earlier version styled [class*="css"], which matches Streamlit's
+   generated class names - they change between releases, so that selector was a
+   promise to break on the next upgrade. Everything below targets either a
+   class this file defines or a documented Streamlit test id. */
+.fm {{ font-family: {SANS}; }}
+.fm.rtl, .rtl {{ direction: rtl; text-align: right; font-family: {SANS_AR}; }}
+.rtl * {{ direction: rtl; text-align: right; }}
 
-html, body, [class*="css"] {{
-  font-family: 'Inter', 'Noto Sans Arabic', system-ui, sans-serif;
-}}
-.rtl, .rtl * {{ direction: rtl; text-align: right;
-                font-family: 'Noto Sans Arabic', 'Inter', sans-serif; }}
-
-/* Streamlit's default block padding is generous at the top and mean at the
-   sides; this reverses it so content breathes horizontally on a laptop. */
-.block-container {{ padding-top: 2.2rem; max-width: 1240px; }}
+/* Streamlit's top padding is generous and its width unconstrained on a wide
+   screen; stMainBlockContainer is a documented test id rather than a generated
+   class. If a future release renames it, the layout loosens - it does not
+   break. */
+[data-testid="stMainBlockContainer"] {{ padding-top: 2.2rem; max-width: 1240px; }}
 
 .hero {{
   border: 1px solid {LINE}; border-radius: 14px; background: {SURFACE};
@@ -199,6 +219,14 @@ T = {
         "ranked last. Unmeasured is neither healthy nor sick."),
     "warmer_than": ("أدفأ بـ{d}°م من محيطه",
                     "{d} degC warmer than its surroundings"),
+    "sortable": ("جدول قابل للفرز", "Sortable table"),
+    "download_csv": ("تنزيل CSV", "Download CSV"),
+    "sortable_caveat": (
+        "الجدول القابل للفرز يفرز ويُصدَّر، لكنّه لا يستطيع تلوين قراءة دون "
+        "العتبة ولا تمييز صفّ غير مقيس — وفيه يتشابه «غير متاح» ورقم منخفض.",
+        "The sortable table sorts and exports, but it cannot colour a "
+        "below-threshold reading or mark an unmeasured row — in it, "
+        "\"not available\" and a merely low number look alike."),
     "no_map": (
         "أشر بـ --fields إلى ملف الحقول لرسم الخريطة. القياسات أدناه لا تعتمد عليه.",
         "Point --fields at the field GeoJSON to draw the map. The measurements "
@@ -222,12 +250,14 @@ def inject() -> None:
 
 
 def _cls(ar: bool, extra: str = "") -> str:
-    return f'class="{extra} rtl"' if ar else f'class="{extra}"'
+    """Class attribute for a component wrapper. `fm` carries the font
+    stack; `rtl` flips direction. Both are this file's own classes."""
+    return f'class="fm {extra}{" rtl" if ar else ""}"'
 
 
 def hero(ar: bool) -> None:
     st.markdown(
-        f'<div class="hero" {"dir=rtl" if ar else ""}>'
+        f'<div class="hero fm{" rtl" if ar else ""}" {"dir=rtl" if ar else ""}>'
         f'<h1>{"🌾 " if not ar else ""}{t("title", ar)}{" 🌾" if ar else ""}</h1>'
         f'<p>{t("tagline", ar)}</p></div>',
         unsafe_allow_html=True)
@@ -241,20 +271,21 @@ def stats(items) -> None:
         + (f'<div class="s">{s}</div>' if s else "")
         + "</div>"
         for k, v, s in items)
-    st.markdown(f'<div class="statgrid">{cells}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="statgrid fm">{cells}</div>', unsafe_allow_html=True)
 
 
 def section(title: str, subtitle: str = "", ar: bool = False) -> None:
     d = ' dir="rtl"' if ar else ""
-    st.markdown(f'<div class="sechead"{d}>{title}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sechead fm{" rtl" if ar else ""}"{d}>{title}</div>',
+                unsafe_allow_html=True)
     if subtitle:
-        st.markdown(f'<div class="subtle"{d}>{subtitle}</div>',
+        st.markdown(f'<div class="subtle fm{" rtl" if ar else ""}"{d}>{subtitle}</div>',
                     unsafe_allow_html=True)
 
 
 def note(text: str, kind: str = "", ar: bool = False) -> None:
     d = ' dir="rtl"' if ar else ""
-    st.markdown(f'<div class="note {kind}"{d}>{text}</div>',
+    st.markdown(f'<div class="note fm {kind}{" rtl" if ar else ""}"{d}>{text}</div>',
                 unsafe_allow_html=True)
 
 
@@ -264,7 +295,8 @@ def field_card(rank, name, status_label, status_key, vigour, why,
     d = ' dir="rtl"' if ar else ""
     items = "".join(f"<li>{x}</li>" for x in drivers)
     st.markdown(
-        f'<div class="fieldcard" style="--accent:{accent}"{d}>'
+        f'<div class="fieldcard fm{" rtl" if ar else ""}" '
+        f'style="--accent:{accent}"{d}>'
         f'<div class="top">'
         f'<span class="rank">#{rank}</span>'
         f'<span class="name">{name}</span>'
@@ -286,7 +318,8 @@ def legend(entries, ar=False) -> None:
         f'<div><div class="lb">{lbl}</div><div class="ds">{meaning}</div></div>'
         f'</div>'
         for k, lbl, meaning in entries)
-    st.markdown(f'<div class="legend"{d}>{html}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="legend fm{" rtl" if ar else ""}"{d}>{html}</div>',
+                unsafe_allow_html=True)
 
 
 def variables_table(rows, ar=False) -> None:
@@ -315,6 +348,6 @@ def variables_table(rows, ar=False) -> None:
             f'<td class="meta">{r["scale"]}</td>'
             f"</tr>")
     st.markdown(
-        f'<table class="vars"{d}><thead><tr>{head}</tr></thead>'
+        f'<table class="vars fm{" rtl" if ar else ""}"{d}><thead><tr>{head}</tr></thead>'
         f'<tbody>{"".join(body)}</tbody></table>',
         unsafe_allow_html=True)

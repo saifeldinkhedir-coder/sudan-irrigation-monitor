@@ -484,3 +484,232 @@ class TestDriverTranslation:
     def test_english_is_untouched(self):
         s = "3.41 degC warmer than its surroundings"
         assert D.localise_driver(s, ar=False) == s
+
+
+# --- what the styled table gave up, given back ---------------------------------
+
+class TestCsvExport:
+    """st.dataframe gave sorting and a download button for free; the styled
+    table replaced it because a dataframe cannot show that a reading is below
+    its threshold. This gives the export back rather than leaving the trade
+    half-made."""
+
+    def _rows(self):
+        return [{"variable": "Vigour (NDVI)", "value": "0.2190",
+                 "threshold": "0.3000", "verdict": "BELOW threshold",
+                 "sensor": "Sentinel-2 median", "scale": "10 m"},
+                {"variable": "Greenness (EVI)", "value": "not available",
+                 "threshold": "—", "verdict": "—", "sensor": "", "scale": "",
+                 "reason": "no valid pixels"}]
+
+    def test_every_row_and_column_reaches_the_csv(self):
+        csv = D.rows_to_csv(self._rows())
+        assert "Vigour (NDVI)" in csv
+        assert "BELOW threshold" in csv
+        assert "Sentinel-2 median" in csv
+
+    def test_the_reason_for_an_unavailable_row_is_exported_too(self):
+        """It is the most useful cell on that row and the one a screenshot of
+        the table would lose."""
+        assert "no valid pixels" in D.rows_to_csv(self._rows())
+
+    def test_the_header_translates_but_sensor_values_do_not(self):
+        csv = D.rows_to_csv(self._rows(), ar=True)
+        assert "القيمة" in csv
+        assert "Sentinel-2 median" in csv, (
+            "a translated sensor name is harder to check against the catalogue")
+
+    def test_it_parses_back_as_csv(self):
+        import csv as _csv
+        import io as _io
+        rows = list(_csv.reader(_io.StringIO(D.rows_to_csv(self._rows()))))
+        assert len(rows) == 3          # header + two data rows
+        assert len(rows[0]) == 7
+
+
+class TestThermalResolvabilitySurfaced:
+    def test_a_field_too_small_for_thermal_says_so_on_the_row(self):
+        rows = D.variables_table({"thermal_stress": {
+            "status": "OK", "value": 40.1, "neighbourhood_c": 40.1,
+            "difference_c": 0.0, "reading": "close to the surrounding land",
+            "sensor": "Landsat 8/9 ST_B10", "scale_m": 100,
+            "pixels_across": 1.2, "resolvable": False,
+            "resolvability_note": ("about 1.2 thermal pixels across - the field "
+                                   "and its surroundings are largely the same "
+                                   "pixels")}})
+        row = next(r for r in rows if r["variable"] == "Surface temperature")
+        assert "largely the same pixels" in row["reason"]
+
+    def test_a_big_enough_field_carries_no_such_warning(self):
+        rows = D.variables_table({"thermal_stress": {
+            "status": "OK", "value": 42.4, "neighbourhood_c": 39.0,
+            "difference_c": 3.4, "reading": "warmer than the surrounding land",
+            "sensor": "Landsat 8/9 ST_B10", "scale_m": 100,
+            "pixels_across": 6.6, "resolvable": True,
+            "resolvability_note": "about 6.6 thermal pixels across - wide enough"}})
+        row = next(r for r in rows if r["variable"] == "Surface temperature")
+        assert not row.get("reason")
+
+
+class TestNoNetworkDependency:
+    def test_the_stylesheet_fetches_nothing(self):
+        """A field office in Sudan has the least reliable connection in the
+        system, and a webfont import also sends a request to a third party
+        every time a farmer opens their own crop data."""
+        import ui as U
+        assert "fonts.googleapis" not in U.CSS
+        assert "@import" not in U.CSS
+        assert "http" not in U.CSS
+
+    def test_the_arabic_stack_reaches_a_face_on_every_platform(self):
+        import ui as U
+        for face in ("Segoe UI", "Noto Sans Arabic", "Tahoma"):
+            assert face in U.SANS_AR
+
+    def test_no_generated_streamlit_class_is_targeted(self):
+        """[class*="css"] matches Streamlit's generated names, which change
+        between releases - a selector that promises to break on upgrade."""
+        import ui as U
+        style = U.CSS.split("*/")[-1]      # skip the comment explaining this
+        assert '[class*=' not in style
+
+
+# --- generated in the language, not translated afterwards ----------------------
+
+class TestBilingualAtSource:
+    """
+    variables_table used to build English cells and a second pass translated
+    them by matching the generated text. That match breaks the moment the engine
+    rewords anything, and it breaks by leaving English inside an Arabic table
+    rather than by raising - the worst way for a translation to fail. The cells
+    are now generated in the requested language.
+    """
+
+    def _rec(self):
+        return {
+            "crop_health": {"readings": {
+                "vigour": {"status": "OK", "value": 0.219, "threshold": 0.30,
+                           "sensor": "Sentinel-2 median", "scale_m": 10}}},
+            "thermal_stress": {"status": "OK", "value": 42.4,
+                               "neighbourhood_c": 39.0, "difference_c": 3.4,
+                               "reading": "warmer than the surrounding land",
+                               "sensor": "Landsat 8/9 ST_B10", "scale_m": 100,
+                               "pixels_across": 6.6, "resolvable": True},
+            "climate": {"season_vs_history": {"this_season_mm": 228.0,
+                                              "verdict": "drier than usual"},
+                        "dry_spells": {"longest_dry_spell_days": 173,
+                                       "threshold_days": 10, "flagged": True}},
+            "soil": {"status": "OK", "texture": "clay"},
+            "phenology": {"status": "OK", "greenup_day": 75.0, "peak_day": 210.0,
+                          "peak_ndvi": 0.52, "season_length_days": 195.0},
+        }
+
+    def test_no_english_leaks_into_the_arabic_table(self):
+        """The check that would have caught the half-translation: no cell in
+        the Arabic table may be one of the engine's English phrases."""
+        leaks = ("close to the surrounding land", "warmer than the surrounding",
+                 "drier than usual", "clay", "FLAGGED", "BELOW threshold",
+                 "above threshold", "not available", "no threshold",
+                 "day 75 of the season", "peak on day", "days")
+        rows = D.variables_table(self._rec(), ar=True)
+        for r in rows:
+            for cell in (r["variable"], str(r["value"]), str(r["threshold"]),
+                         str(r["verdict"])):
+                for phrase in leaks:
+                    assert cell != phrase, f"English cell in Arabic table: {cell}"
+
+    def test_the_thermal_reading_translates(self):
+        rows = D.variables_table(self._rec(), ar=True)
+        row = next(r for r in rows if r["variable"] == "حرارة السطح")
+        assert row["verdict"] == "أدفأ من الأرض المحيطة"
+
+    def test_the_season_verdict_translates(self):
+        rows = D.variables_table(self._rec(), ar=True)
+        row = next(r for r in rows if "تاريخ الموقع" in r["variable"])
+        assert row["verdict"] == "أجفّ من المعتاد"
+
+    def test_the_soil_texture_translates(self):
+        rows = D.variables_table(self._rec(), ar=True)
+        assert next(r for r in rows if r["variable"] == "قوام التربة")["value"] \
+            == "طين"
+
+    def test_phenology_days_are_arabic(self):
+        rows = D.variables_table(self._rec(), ar=True)
+        row = next(r for r in rows if r["variable"] == "يوم الإنبات")
+        assert "اليوم 75 من الموسم" == row["value"]
+
+    def test_an_unknown_engine_value_passes_through_visibly(self):
+        """A vocabulary item nobody translated must appear verbatim, not as a
+        blank: a missing cell hides that the engine said something new."""
+        rec = self._rec()
+        rec["soil"]["texture"] = "some new texture class"
+        rows = D.variables_table(rec, ar=True)
+        assert next(r for r in rows
+                    if r["variable"] == "قوام التربة")["value"] \
+            == "some new texture class"
+
+    def test_sensors_and_units_stay_latin_in_both_languages(self):
+        ar = D.variables_table(self._rec(), ar=True)
+        en = D.variables_table(self._rec(), ar=False)
+        for a, e in zip(ar, en):
+            assert a["sensor"].replace("سنوات", "years") == e["sensor"]
+            assert a["scale"] == e["scale"]
+
+    def test_the_english_table_is_unchanged_in_wording(self):
+        rows = D.variables_table(self._rec(), ar=False)
+        labels = {r["variable"] for r in rows}
+        assert "Surface temperature" in labels
+        assert "Crop water NEEDED (ETc)" in labels
+
+
+class TestEngineVocabularies:
+    """Classification values the engine emits reach the screen verbatim. They
+    are vocabularies, not prose, so they translate by lookup - and anything new
+    passes through visibly rather than blanking."""
+
+    def test_the_relative_condition_translates(self):
+        n = D.nutrition_line({"nutrition": {
+            "status": "OK", "claim_level": "relative",
+            "relative_condition": "WITHIN SCHEME NORM"}}, ar=True)
+        assert "ضمن معدّل المخطط" in n["headline"]
+        assert "SCHEME NORM" not in n["headline"]
+
+    def test_all_three_condition_bands_are_covered(self):
+        for band in ("BELOW SCHEME NORM", "WITHIN SCHEME NORM",
+                     "ABOVE SCHEME NORM"):
+            assert band in D.RELATIVE_CONDITION
+
+    def test_the_sufficiency_reading_translates(self):
+        n = D.nutrition_line({"nutrition": {
+            "status": "OK", "claim_level": "sufficiency",
+            "sufficiency_index": 0.93, "sufficiency_reading": "marginal"}},
+            ar=True)
+        assert "حدّي" in n["headline"]
+
+    def test_the_yield_refusal_is_arabic(self):
+        line = D.yield_line({"yield_estimate": {
+            "yield_t_ha": None,
+            "reason": "no calibrated yield model exists for sorghum"}}, ar=True)
+        assert "30 قياس حصاد" in line
+        assert "calibrated" not in line
+
+    def test_the_etc_integral_note_is_arabic(self):
+        note = D.etc_method_note({"water_requirement": {
+            "etc_method": "sum over days of Kcb", "canopy_series":
+                {"observed_days": 75, "coverage": 0.83}}}, ar=True)
+        assert "التكامل اليومي" in note
+        assert "75" in note
+
+    def test_the_approximate_warning_is_arabic_and_keeps_its_symbol(self):
+        note = D.etc_method_note({"water_requirement": {
+            "etc_method": "APPROXIMATE: season-mean NDVI"}}, ar=True)
+        assert note.startswith("⚠️")
+        assert "طريقة تقريبية" in note
+
+    def test_the_nutrition_caveat_is_arabic(self):
+        n = D.nutrition_line({"nutrition": {
+            "status": "OK", "claim_level": "relative",
+            "relative_condition": "WITHIN SCHEME NORM",
+            "caveat": "Chlorophyll indices respond to nitrogen..."}}, ar=True)
+        assert "الكلوروفيل" in n["caveat"]
+        assert "الملوحة" in n["caveat"], "the multi-cause warning must survive"

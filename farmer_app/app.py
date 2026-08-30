@@ -162,13 +162,38 @@ def _render_map(feats, ar):
 
 def _render_field(rec, ar):
     left, right = st.columns([3, 2], gap="large")
-    rows = D.localise_rows(D.variables_table(rec), ar)
+    rows = D.variables_table(rec, ar)
 
     with left:
         ui.section(ui.t("all_variables", ar), "", ar)
-        ui.variables_table(rows, ar)
 
-        note = D.etc_method_note(rec)
+        # The styled table by default, because it is the only one that can show
+        # a below-threshold reading in red and an unavailable row in grey
+        # italic. The interactive one is a click away for anyone who wants
+        # sorting - st.dataframe gives that free, and it was lost when the
+        # styled table replaced it.
+        c1, c2 = st.columns([3, 2])
+        interactive = c1.toggle(ui.t("sortable", ar), value=False,
+                                key=f"tbl_{rec.get('name')}")
+        c2.download_button(
+            ui.t("download_csv", ar),
+            data=D.rows_to_csv(rows, ar).encode("utf-8-sig"),
+            file_name=f"{rec.get('name', 'field')}.csv",
+            mime="text/csv", key=f"csv_{rec.get('name')}")
+
+        if interactive:
+            st.dataframe(
+                [{ui.t("var", ar): r["variable"], ui.t("value", ar): r["value"],
+                  ui.t("compared", ar): r["threshold"],
+                  ui.t("reading", ar): r["verdict"],
+                  ui.t("sensor", ar): r["sensor"],
+                  ui.t("measured_at", ar): r["scale"]} for r in rows],
+                width="stretch", hide_index=True)
+            ui.note(ui.t("sortable_caveat", ar), "warn", ar)
+        else:
+            ui.variables_table(rows, ar)
+
+        note = D.etc_method_note(rec, ar)
         if note:
             ui.note(note, "warn" if note.startswith("⚠️") else "", ar)
         for r in rows:
@@ -177,7 +202,7 @@ def _render_field(rec, ar):
 
         series = rec.get("series") or {}
         if series.get("status") == "OK" and series.get("dates"):
-            ui.section(ui.t("through_season", ar), series.get("note", ""), ar)
+            ui.section(ui.t("through_season", ar), series.get("note_ar" if ar else "note", ""), ar)
             st.line_chart(
                 {"NDVI": dict(zip(series["dates"], series["ndvi"])),
                  "NDMI": dict(zip(series["dates"], series["ndmi"]))},
@@ -190,7 +215,7 @@ def _render_field(rec, ar):
                     + ref.get("reference_source", ""), "warn", ar)
 
         ui.section(ui.t("nutrition", ar), "", ar)
-        n = D.nutrition_line(rec)
+        n = D.nutrition_line(rec, ar)
         if n["available"]:
             st.markdown(f"**{n['headline']}**")
             if n.get("next_step"):
@@ -200,7 +225,7 @@ def _render_field(rec, ar):
             ui.note(n["reason"], "", ar)
 
         ui.section(ui.t("yield_", ar), "", ar)
-        ui.note(D.yield_line(rec), "", ar)
+        ui.note(D.yield_line(rec, ar), "", ar)
 
         ui.section(ui.t("advisory", ar), "", ar)
         adv = rec.get("advisory" if ar else "advisory_en") or {}
