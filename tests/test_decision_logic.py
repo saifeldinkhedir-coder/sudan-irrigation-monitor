@@ -265,3 +265,45 @@ class TestAgreement:
 if __name__ == "__main__":
     import subprocess
     raise SystemExit(subprocess.call(["pytest", "-q", __file__]))
+
+
+class TestCalibrationProgress:
+    """
+    The gates are the right decision and, alone, a discouraging experience: a
+    refusal that cannot say what would lift it is indistinguishable from one
+    that never lifts, and the second teaches people to stop collecting data.
+    """
+
+    def test_an_empty_set_says_how_many_are_needed(self):
+        p = dl.calibration_progress(0, 30, quantity="a yield")
+        assert p["points_remaining"] == 30
+        assert p["blocked_by"] == "POINTS"
+        assert "30 more measurements" in p["next_step"]
+
+    def test_a_partial_set_counts_down(self):
+        p = dl.calibration_progress(12, 30)
+        assert p["points_remaining"] == 18
+        assert "12 of 30" in p["next_step"]
+        assert 0 < p["fraction"] < 1
+
+    def test_one_remaining_is_singular(self):
+        assert "1 more measurement " in dl.calibration_progress(29, 30)["next_step"]
+
+    def test_enough_points_but_unfitted_says_so(self):
+        p = dl.calibration_progress(35, 30, rmse=None, max_rmse=0.25)
+        assert p["blocked_by"] == "UNFITTED"
+        assert p["unlocked"] is False
+        assert "enough to fit" in p["next_step"]
+
+    def test_a_weak_model_explains_the_narrow_range_trap(self):
+        p = dl.calibration_progress(35, 30, rmse=0.9, max_rmse=0.25)
+        assert p["blocked_by"] == "ERROR"
+        assert "narrow range" in p["next_step"]
+
+    def test_a_good_model_unlocks(self):
+        p = dl.calibration_progress(35, 30, rmse=0.1, max_rmse=0.25)
+        assert p["unlocked"] is True
+        assert p["blocked_by"] is None
+
+    def test_the_fraction_never_exceeds_one(self):
+        assert dl.calibration_progress(100, 30, 0.1, 0.25)["fraction"] == 1.0

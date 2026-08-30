@@ -13,6 +13,10 @@ venv/
 *.sqlite
 *.sqlite3
 
+# Photographs submitted through the scouting form. Images of real
+# people's fields, taken at recorded coordinates - they stay local.
+observations/
+
 # Earth Engine credentials and local environment
 .env
 .env.*

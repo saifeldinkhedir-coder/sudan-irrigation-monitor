@@ -35,6 +35,7 @@ import pydeck as pdk
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import view as D
+import record as R
 
 
 def _args():
@@ -78,6 +79,12 @@ def main():
         st.stop()
 
     report = _load(report_path)
+
+    page = st.sidebar.radio("Page", ["Fields", "Record data"])
+    if page == "Record data":
+        R.render(report)
+        return
+
     season = report.get("season", {})
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Fields", report.get("n_fields", 0))

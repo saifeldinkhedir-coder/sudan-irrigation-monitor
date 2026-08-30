@@ -333,3 +333,90 @@ class TestMethodLabels:
     def test_the_two_labels_are_distinguishable(self):
         assert ag.ETC_METHOD_INTEGRAL != ag.ETC_METHOD_APPROXIMATE
         assert "APPROXIMATE" not in ag.ETC_METHOD_INTEGRAL
+
+
+# --- the yield calibration store ----------------------------------------------
+
+class TestYieldCalibrationStore:
+    def _store(self, tmp_path):
+        return ag.YieldCalibrationStore(str(tmp_path / "y.db"))
+
+    def test_kilograms_without_an_area_is_not_a_yield(self, tmp_path):
+        s = self._store(tmp_path)
+        try:
+            import pytest
+            with pytest.raises(ValueError, match="positive harvested area"):
+                s.add_point("sorghum", harvested_kg=500.0, area_ha=0.0, ndvi=0.5)
+        finally:
+            s.close()
+
+    def test_a_harvest_with_no_matching_observation_trains_nothing(self, tmp_path):
+        s = self._store(tmp_path)
+        try:
+            import pytest
+            with pytest.raises(ValueError, match="trains nothing"):
+                s.add_point("sorghum", harvested_kg=500.0, area_ha=1.0, ndvi=None)
+        finally:
+            s.close()
+
+    def test_yield_per_hectare_is_derived_not_typed(self, tmp_path):
+        s = self._store(tmp_path)
+        try:
+            s.add_point("sorghum", harvested_kg=6000.0, area_ha=2.0, ndvi=0.5)
+            assert s.points("sorghum") == [(0.5, 3.0)]
+        finally:
+            s.close()
+
+    def test_too_few_points_refuses_to_fit(self, tmp_path):
+        s = self._store(tmp_path)
+        try:
+            for i in range(5):
+                s.add_point("sorghum", harvested_kg=3000.0, area_ha=1.0,
+                            ndvi=0.3 + 0.05 * i)
+            r = s.fit("sorghum")
+            assert r["fitted"] is False
+            assert "30" in r["reason"]
+        finally:
+            s.close()
+
+    def test_points_with_no_spread_cannot_be_fitted(self, tmp_path):
+        s = self._store(tmp_path)
+        try:
+            for _ in range(35):
+                s.add_point("sorghum", harvested_kg=3000.0, area_ha=1.0, ndvi=0.5)
+            r = s.fit("sorghum")
+            assert r["fitted"] is False
+            assert "span a range" in r["reason"]
+        finally:
+            s.close()
+
+    def test_a_good_set_fits_and_unlocks_a_tonnage(self, tmp_path):
+        s = self._store(tmp_path)
+        try:
+            for i in range(35):
+                nd = 0.20 + 0.015 * i
+                s.add_point("sorghum", harvested_kg=(1.0 + 6 * nd) * 1000,
+                            area_ha=1.0, ndvi=nd)
+            fit = s.fit("sorghum")
+            assert fit["fitted"] is True
+            assert fit["r2"] > 0.9
+            assert s.progress("sorghum")["unlocked"] is True
+            est = ag.yield_estimate(0.55, "sorghum", calibration=s.model("sorghum"))
+            assert est["claim_level"] == "calibrated"
+            assert est["yield_t_ha"] is not None
+        finally:
+            s.close()
+
+    def test_progress_counts_down_and_names_the_obstacle(self, tmp_path):
+        s = self._store(tmp_path)
+        try:
+            assert "30 more measurements" in s.progress("sorghum")["next_step"]
+            for i in range(12):
+                s.add_point("sorghum", harvested_kg=3000.0, area_ha=1.0,
+                            ndvi=0.3 + 0.01 * i)
+            p = s.progress("sorghum")
+            assert p["points_remaining"] == 18
+            assert p["blocked_by"] == "POINTS"
+            assert p["unlocked"] is False
+        finally:
+            s.close()

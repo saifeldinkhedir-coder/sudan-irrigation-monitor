@@ -753,3 +753,139 @@ def yield_estimate(mean_ndvi: Optional[float], crop: str,
         "reason": None,
     })
     return base
+
+
+# ==============================================================================
+# YIELD CALIBRATION STORE - the only thing that unlocks a tonnage
+# ==============================================================================
+
+class YieldCalibrationStore:
+    """
+    Harvest measurements, and the model they permit.
+
+    WHAT COUNTS AS A POINT
+    A weighed harvest from a known area on a known date, paired with the
+    satellite canopy for that field and season. Not an estimate, not a
+    recollection, not a sack count converted by a rule of thumb - those carry
+    an error nobody can quantify, and an unquantifiable error in the training
+    data becomes an unquantifiable error in every prediction made from it.
+
+    WHY THE FIT IS DELIBERATELY A STRAIGHT LINE
+    With a few dozen points, a linear fit is the most that is defensible. A
+    flexible model on thirty samples fits the noise and reports a flattering
+    error that will not survive contact with next season.
+    """
+
+    def __init__(self, path: str = "yield_calibration.db"):
+        import sqlite3
+        self.conn = sqlite3.connect(path)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS yield_points (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                crop TEXT NOT NULL, field_id TEXT, season INTEGER,
+                recorded_at TEXT NOT NULL,
+                harvested_kg REAL NOT NULL, area_ha REAL NOT NULL,
+                yield_t_ha REAL NOT NULL, ndvi REAL NOT NULL,
+                method TEXT NOT NULL, operator TEXT, notes TEXT
+            )""")
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS yield_model (
+                crop TEXT PRIMARY KEY, slope REAL, intercept REAL,
+                r2 REAL, rmse_fraction REAL, n_points INTEGER, fitted_at TEXT
+            )""")
+        self.conn.commit()
+
+    def add_point(self, crop: str, harvested_kg: float, area_ha: float,
+                  ndvi: float, field_id: str = "", season: Optional[int] = None,
+                  method: str = "WEIGHED", operator: str = "",
+                  notes: str = "") -> int:
+        if area_ha is None or area_ha <= 0:
+            raise ValueError("a yield point needs a positive harvested area; "
+                             "kilograms without an area is not a yield")
+        if harvested_kg is None or harvested_kg < 0:
+            raise ValueError("harvested weight must be zero or positive")
+        if ndvi is None:
+            raise ValueError(
+                "a yield point needs the satellite canopy for that field and "
+                "season; a harvest with no matching observation trains nothing")
+        t_ha = (harvested_kg / 1000.0) / area_ha
+        cur = self.conn.execute(
+            "INSERT INTO yield_points (crop, field_id, season, recorded_at,"
+            " harvested_kg, area_ha, yield_t_ha, ndvi, method, operator, notes)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (crop, field_id, season, datetime.now(timezone.utc).isoformat(),
+             harvested_kg, area_ha, t_ha, ndvi, method, operator, notes))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def points(self, crop: str) -> list:
+        rows = self.conn.execute(
+            "SELECT ndvi, yield_t_ha FROM yield_points WHERE crop = ?",
+            (crop,)).fetchall()
+        return [(r[0], r[1]) for r in rows]
+
+    def fit(self, crop: str) -> dict:
+        """
+        Fit yield against canopy by least squares, and store it only if it
+        clears the gate. RMSE is expressed as a FRACTION of mean observed
+        yield, so the limit means the same thing for a 1 t/ha crop and a
+        6 t/ha one.
+        """
+        pts = self.points(crop)
+        n = len(pts)
+        if n < MIN_YIELD_CALIBRATION_POINTS:
+            return {"fitted": False, "n_points": n,
+                    "reason": (f"{n} points; {MIN_YIELD_CALIBRATION_POINTS} "
+                               "needed before a model is fitted")}
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        mx, my = sum(xs) / n, sum(ys) / n
+        sxx = sum((x - mx) ** 2 for x in xs)
+        if sxx == 0:
+            return {"fitted": False, "n_points": n,
+                    "reason": ("every point has the same canopy value, so no "
+                               "relationship can be fitted - the samples need "
+                               "to span a range")}
+        slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx
+        intercept = my - slope * mx
+        preds = [slope * x + intercept for x in xs]
+        ss_res = sum((y - p) ** 2 for y, p in zip(ys, preds))
+        ss_tot = sum((y - my) ** 2 for y in ys)
+        r2 = 1 - ss_res / ss_tot if ss_tot else 0.0
+        rmse = (ss_res / n) ** 0.5
+        rmse_fraction = rmse / my if my else None
+
+        self.conn.execute(
+            "INSERT OR REPLACE INTO yield_model (crop, slope, intercept, r2,"
+            " rmse_fraction, n_points, fitted_at) VALUES (?,?,?,?,?,?,?)",
+            (crop, slope, intercept, r2, rmse_fraction, n,
+             datetime.now(timezone.utc).isoformat()))
+        self.conn.commit()
+        return {"fitted": True, "crop": crop, "n_points": n,
+                "slope": round(slope, 4), "intercept": round(intercept, 4),
+                "r2": round(r2, 4),
+                "rmse_fraction": (round(rmse_fraction, 4)
+                                  if rmse_fraction is not None else None),
+                "rmse_t_ha": round(rmse, 4)}
+
+    def model(self, crop: str) -> Optional[dict]:
+        row = self.conn.execute(
+            "SELECT slope, intercept, r2, rmse_fraction, n_points FROM"
+            " yield_model WHERE crop = ?", (crop,)).fetchone()
+        if not row:
+            return None
+        return {"slope": row[0], "intercept": row[1], "r2": row[2],
+                "rmse_fraction": row[3], "n_points": row[4]}
+
+    def progress(self, crop: str) -> dict:
+        """How far this crop is from a quotable yield, and what is missing."""
+        m = self.model(crop)
+        return dl.calibration_progress(
+            n_points=len(self.points(crop)),
+            min_points=MIN_YIELD_CALIBRATION_POINTS,
+            rmse=(m or {}).get("rmse_fraction"),
+            max_rmse=MAX_ACCEPTABLE_YIELD_RMSE_FRACTION,
+            quantity="a yield in tonnes per hectare")
+
+    def close(self):
+        self.conn.close()

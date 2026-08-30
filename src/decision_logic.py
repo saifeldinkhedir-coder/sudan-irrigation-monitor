@@ -910,6 +910,67 @@ def calibration_gate(n_points: int, rmse: Optional[float],
                       f"<= {max_rmse}{unit}"}
 
 
+def calibration_progress(n_points: int, min_points: int,
+                         rmse: Optional[float] = None,
+                         max_rmse: Optional[float] = None,
+                         quantity: str = "an absolute figure") -> dict:
+    """
+    How far a calibration set is from unlocking an absolute number, and what
+    specifically is still missing.
+
+    WHY THIS IS WORTH ITS OWN FUNCTION
+    The gates in this platform are the right decision and a discouraging user
+    experience: a farmer who collects twelve leaf samples and is still told
+    "not available" has no way to know whether they are nearly there or nowhere
+    near. A refusal that cannot say what would lift it is indistinguishable
+    from a refusal that never lifts, and the second teaches people to stop
+    trying.
+
+    So this reports the count, the shortfall, and - once enough points exist -
+    whether the fitted error is the remaining obstacle. It changes nothing about
+    what gets reported; it only makes the gate legible.
+    """
+    n = n_points or 0
+    remaining = max(0, min_points - n)
+    out = {
+        "n_points": n,
+        "min_points": min_points,
+        "points_remaining": remaining,
+        "fraction": round(min(1.0, n / min_points), 3) if min_points else 0.0,
+        "unlocked": False,
+        "quantity": quantity,
+    }
+    if remaining:
+        out["blocked_by"] = "POINTS"
+        out["next_step"] = (
+            f"{remaining} more measurement{'s' if remaining != 1 else ''} "
+            f"needed before {quantity} can be quoted ({n} of {min_points}).")
+        return out
+
+    if rmse is None:
+        out["blocked_by"] = "UNFITTED"
+        out["next_step"] = (
+            f"{n} points collected - enough to fit. The model has not been "
+            "fitted yet, so no figure is quoted.")
+        return out
+
+    if max_rmse is not None and rmse > max_rmse:
+        out["blocked_by"] = "ERROR"
+        out["fitted_rmse"] = rmse
+        out["next_step"] = (
+            f"{n} points collected and fitted, but the model's error "
+            f"({rmse:.2f}) exceeds the {max_rmse} limit. More points may help; "
+            "so may checking whether the samples span a wide enough range of "
+            "the quantity being measured, because a fit over a narrow range "
+            "reports a small error and generalises badly.")
+        return out
+
+    out.update({"unlocked": True, "blocked_by": None, "fitted_rmse": rmse,
+                "next_step": (f"{quantity} is available: {n} points, error "
+                              f"{rmse:.2f} within the {max_rmse} limit.")})
+    return out
+
+
 def relative_condition(value: float, scheme_p25: float,
                        scheme_p75: float) -> dict:
     """

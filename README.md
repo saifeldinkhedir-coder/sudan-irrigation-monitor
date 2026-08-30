@@ -54,7 +54,7 @@ geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
   canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
                                against what the engine requires, before a run.
-tests/                         368 tests; run with no Earth Engine.
+tests/                         382 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -125,7 +125,7 @@ one is a hazard rather than a missing nicety.
 pip install -r requirements.txt        # earthengine-api, numpy, streamlit, pytest
 
 # tests need NO Earth Engine and no auth:
-pytest -q                              # 368 tests
+pytest -q                              # 382 tests
 
 # run the FULL pipeline offline against the mock backend (no auth, no quota):
 python - <<'PY'
@@ -223,7 +223,7 @@ vertical noise, so a DEM would dress an assumption up as a measurement.
 
 ## Status — honest
 
-**Logic tested, plumbing tested, measurements unvalidated.** All 368 tests pass
+**Logic tested, plumbing tested, measurements unvalidated.** All 382 tests pass
 with no Earth Engine. The mock backend runs the whole `analyse()` pipeline
 offline, so the wiring is verified — but the mock returns synthetic values, so it
 proves the pipeline is *wired* correctly, never that the *measurements* are
@@ -328,3 +328,36 @@ after the last observation, and if less than half the season ends up covered the
 seasonal total is refused rather than scaled up — the missing days are not a
 random sample, they are the cloudy ones. A caller with no dated series still gets
 a number, labelled `APPROXIMATE` in the output and flagged in the app.
+
+### The gates are legible, not just closed
+
+Two outputs are deliberately locked: an absolute leaf-nitrogen percentage, and a
+yield in tonnes per hectare. Neither is quoted without local measurements.
+
+Those gates are correct and, on their own, a bad experience. A farmer who
+collects twelve leaf samples and is still told "not available" cannot tell
+whether they are nearly there or nowhere near — and a refusal that cannot say
+what would lift it is indistinguishable from one that never lifts. The second
+teaches people to stop collecting data.
+
+So the **Record data** page in the farmer app puts a progress line under every
+form: how many measurements remain, and once the count is met, whether the
+obstacle is an unfitted model or a fitted one whose error is too large. The gate
+does not move. It becomes legible.
+
+| Tab | What it collects | What it unlocks |
+|---|---|---|
+| Scouting | photograph, canopy, weeds, pests, soil, salinity, outlet | the platform's own reliability figure |
+| Nitrogen calibration | lab leaf N % or SPAD, paired with that field's red-edge indices | Level 3 nitrogen |
+| Harvest | a **weighed** harvest from a known area, paired with canopy | a yield in t/ha |
+| Costs | operations and sales | gross margin, water productivity |
+
+The forms refuse what would poison the model. A calibration point with no
+satellite indices to pair against is rejected; kilograms with no area is not a
+yield; a harvest with no matching canopy observation trains nothing. An
+unquantifiable error in training data becomes an unquantifiable error in every
+prediction made from it, and unlike a satellite error it leaves no trace anyone
+can find later.
+
+Local databases (`*.db`) and submitted photographs (`observations/`) are
+gitignored: they hold real people's fields, coordinates and money.
