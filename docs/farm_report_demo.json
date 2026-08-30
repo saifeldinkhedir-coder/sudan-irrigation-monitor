@@ -1,0 +1,951 @@
+{
+  "tool": "Farm Monitor - agriculture engine",
+  "generated_utc": "2026-08-30T06:16:26.132024+00:00",
+  "gee_project": "sudan-irrigriculture-monitor",
+  "season": {
+    "start": "2022-07-01",
+    "end": "2023-03-31"
+  },
+  "crop": "sorghum",
+  "n_fields": 4,
+  "sensors": {
+    "Sentinel-2": "10 m optical - vigour, canopy moisture, greenness",
+    "Sentinel-2 red-edge": "B5-B7 - chlorophyll without saturating",
+    "Landsat 8/9 thermal": "100 m LST - direct water-stress measure",
+    "CHIRPS": "daily rainfall - separates drought from crop problems",
+    "ERA5-Land": "FAO-56 inputs, growing degree days, heat stress",
+    "MODIS": "actual evapotranspiration",
+    "NOAA GFS": "7-day outlook, ~28 km - scheme scale, not field scale",
+    "OpenLandMap": "soil texture, 250 m - explains standing differences"
+  },
+  "fields": [
+    {
+      "name": "Field 1",
+      "properties": {
+        "name": "Field 1"
+      },
+      "reference_provenance": {
+        "reference_source": "NEIGHBOURHOOD: 3000 m buffer around the field",
+        "field_area_ha": 43.11,
+        "area_ratio": 82.79,
+        "buffer_basis": "ARBITRARY: 3 km is wide enough to contain other fields and narrow enough to stay in the same soil and climate",
+        "verdict_withheld": false
+      },
+      "crop_health": {
+        "readings": {
+          "vigour": {
+            "name": "vigour",
+            "status": "OK",
+            "value": 0.3002,
+            "unit": "",
+            "reason": null,
+            "threshold": 0.0059,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Crop vigour. The headline health number, and the slowest to move.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          },
+          "canopy_moisture": {
+            "name": "canopy_moisture",
+            "status": "OK",
+            "value": 0.0011,
+            "unit": "",
+            "reason": null,
+            "threshold": -0.1933,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Canopy water content. Falls BEFORE visible vigour does, so it is the earlier of the two warnings.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          },
+          "greenness": {
+            "name": "greenness",
+            "status": "OK",
+            "value": 0.1802,
+            "unit": "",
+            "reason": null,
+            "threshold": 0.0058,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Enhanced vegetation index. Less prone to saturating over a dense canopy than NDVI.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          }
+        }
+      },
+      "thermal_stress": {
+        "status": "OK",
+        "value": 40.14,
+        "unit": "degC",
+        "sensor": "Landsat 8/9 ST_B10",
+        "n_scenes": 28,
+        "scale_m": 100,
+        "interpretation": "Land surface temperature. A transpiring crop is cooler than a stressed one, so a field warm relative to its neighbours is a direct water-stress signal - and it moves days before vigour does.",
+        "neighbourhood_c": 40.14,
+        "difference_c": 0.0,
+        "reading": "close to the surrounding land",
+        "difference_basis": "ARBITRARY: 1 degC is the band treated as indistinguishable"
+      },
+      "rainfall": {
+        "season_mm": 219.9,
+        "last_14d_mm": 0,
+        "rain_floor_mm": 5.0,
+        "rain_floor_basis": "ARBITRARY",
+        "sensor": "CHIRPS daily",
+        "sampled_as": "the CHIRPS cell containing this field (5500 m); rainfall is not resolved at field scale by any dataset here",
+        "why": "Without rainfall context, a stressed field cannot be told apart from a dry season. The two need different actions."
+      },
+      "soil": {
+        "status": "OK",
+        "class_code": 1,
+        "texture": "clay",
+        "sensor": "OpenLandMap USDA texture class, 250 m",
+        "caveat": "A global model, not a soil test. Useful for explaining differences between fields; not a substitute for sampling."
+      },
+      "water_requirement": {
+        "status": "OK",
+        "et0_mm": 1792.5,
+        "et0_mm_per_day": 6.57,
+        "days_used": 273,
+        "days_returned": 273,
+        "observed_day_fraction": 1.0,
+        "provenance": {
+          "sensor": "ERA5-Land daily aggregates",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "method": "FAO-56 Penman-Monteith, eq. 6, G = 0 at daily step",
+          "scale_m": 11000,
+          "note": "ET0 is computed from an 11 km region mean, not per pixel. A per-pixel ET0 raster would present 11 km of information at 10 m resolution."
+        },
+        "interpretation": "Reference evapotranspiration: what a short, well-watered grass surface would transpire here.",
+        "kcb": 0.332,
+        "kcb_basis": "ARBITRARY: Kcb = -0.1 + 1.44 * NDVI, published coefficients from other regions and crops, clamped to [0.0, 1.15]. Not validated in Sudan.",
+        "kcb_clamped": false,
+        "etc_mm": 595.1,
+        "etc_mm_per_day": 2.18,
+        "etc_caveat": "This is water REQUIRED, not water DELIVERED. Nothing in this engine measures delivery to a field.",
+        "irrigation_requirement_mm": null,
+        "irrigation_requirement_reason": "no daily rainfall series supplied, so supply cannot be subtracted from demand"
+      },
+      "yield_estimate": {
+        "status": "OK",
+        "claim_level": "relative",
+        "mean_ndvi": 0.3002,
+        "yield_t_ha": null,
+        "caveat": "Canopy greenness is not yield. Grain fill, harvest losses and terminal stress all break the relationship after the canopy has already been measured.",
+        "reason": "no calibrated yield model exists for sorghum; at least 30 local harvest measurements are needed before any tonnage is quoted"
+      },
+      "climate": {
+        "growing_degree_days": 5271.302263283722,
+        "gdd_base_c": 10.0,
+        "heat_stress_days": 79,
+        "heat_stress_threshold_c": 38.0,
+        "heat_stress_basis": "ARBITRARY: published crop figure, not a Sudanese trial",
+        "dry_spells": {
+          "longest_dry_spell_days": 173,
+          "flagged": true,
+          "threshold_days": 10,
+          "rain_floor_mm": 1.0,
+          "days_in_series": 273,
+          "basis": "ARBITRARY: hand-chosen dry-spell length and rain floor"
+        },
+        "season_vs_history": {
+          "this_season_mm": 221.8,
+          "historical_mean_mm": 245.7,
+          "historical_min_mm": 127.3,
+          "historical_max_mm": 315.1,
+          "percentile": 20.0,
+          "years_compared": 10,
+          "verdict": "drier than usual"
+        },
+        "sources": {
+          "temperature": "ERA5-Land daily aggregates",
+          "rainfall": "CHIRPS daily"
+        }
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 0.4522605593615662,
+          "MTCI": 1.6843348458778404,
+          "NDRE": 0.1933154454753284,
+          "S2REP": 717.8138497723642
+        },
+        "relative_condition": "WITHIN SCHEME NORM",
+        "percentile_in_scheme": 50.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      },
+      "advisory": {
+        "field": "Field 1",
+        "language": "ar",
+        "items": [
+          {
+            "key": "stress",
+            "text": "لا مؤشّر دون عتبة الجوار."
+          },
+          {
+            "key": "rainfall",
+            "text": "سقط نحو 0.0 مم مطرًا في الأسبوعين الأخيرين."
+          },
+          {
+            "key": "nutrition",
+            "text": "حالة الكلوروفيل مقارنة بالمخطط: WITHIN SCHEME NORM. هذه مرتبة نسبية وليست قياسًا للنيتروجين."
+          }
+        ],
+        "withheld": [],
+        "attributes_cause": false,
+        "basis": {
+          "irrigation_deficit_mm": 25.0,
+          "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
+        },
+        "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      },
+      "advisory_en": {
+        "field": "Field 1",
+        "language": "en",
+        "items": [
+          {
+            "key": "stress",
+            "text": "no indicator below the neighbourhood threshold."
+          },
+          {
+            "key": "rainfall",
+            "text": "about 0.0 mm of rain fell in the last 14 days."
+          },
+          {
+            "key": "nutrition",
+            "text": "chlorophyll condition within the scheme: WITHIN SCHEME NORM. This is a relative rank, not a nitrogen measurement."
+          }
+        ],
+        "withheld": [],
+        "attributes_cause": false,
+        "basis": {
+          "irrigation_deficit_mm": 25.0,
+          "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
+        },
+        "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      }
+    },
+    {
+      "name": "Field 2",
+      "properties": {
+        "name": "Field 2"
+      },
+      "reference_provenance": {
+        "reference_source": "NEIGHBOURHOOD: 3000 m buffer around the field",
+        "field_area_ha": 43.1,
+        "area_ratio": 82.8,
+        "buffer_basis": "ARBITRARY: 3 km is wide enough to contain other fields and narrow enough to stay in the same soil and climate",
+        "verdict_withheld": false
+      },
+      "crop_health": {
+        "readings": {
+          "vigour": {
+            "name": "vigour",
+            "status": "OK",
+            "value": 0.2188,
+            "unit": "",
+            "reason": null,
+            "threshold": 0.0352,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Crop vigour. The headline health number, and the slowest to move.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          },
+          "canopy_moisture": {
+            "name": "canopy_moisture",
+            "status": "OK",
+            "value": -0.0474,
+            "unit": "",
+            "reason": null,
+            "threshold": -0.1698,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Canopy water content. Falls BEFORE visible vigour does, so it is the earlier of the two warnings.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          },
+          "greenness": {
+            "name": "greenness",
+            "status": "OK",
+            "value": 0.1321,
+            "unit": "",
+            "reason": null,
+            "threshold": 0.0137,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Enhanced vegetation index. Less prone to saturating over a dense canopy than NDVI.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          }
+        }
+      },
+      "thermal_stress": {
+        "status": "OK",
+        "value": 42.41,
+        "unit": "degC",
+        "sensor": "Landsat 8/9 ST_B10",
+        "n_scenes": 28,
+        "scale_m": 100,
+        "interpretation": "Land surface temperature. A transpiring crop is cooler than a stressed one, so a field warm relative to its neighbours is a direct water-stress signal - and it moves days before vigour does.",
+        "neighbourhood_c": 39.0,
+        "difference_c": 3.41,
+        "reading": "warmer than the surrounding land",
+        "difference_basis": "ARBITRARY: 1 degC is the band treated as indistinguishable"
+      },
+      "rainfall": {
+        "season_mm": 227.4,
+        "last_14d_mm": 0,
+        "rain_floor_mm": 5.0,
+        "rain_floor_basis": "ARBITRARY",
+        "sensor": "CHIRPS daily",
+        "sampled_as": "the CHIRPS cell containing this field (5500 m); rainfall is not resolved at field scale by any dataset here",
+        "why": "Without rainfall context, a stressed field cannot be told apart from a dry season. The two need different actions."
+      },
+      "soil": {
+        "status": "OK",
+        "class_code": 1,
+        "texture": "clay",
+        "sensor": "OpenLandMap USDA texture class, 250 m",
+        "caveat": "A global model, not a soil test. Useful for explaining differences between fields; not a substitute for sampling."
+      },
+      "water_requirement": {
+        "status": "OK",
+        "et0_mm": 1798.7,
+        "et0_mm_per_day": 6.59,
+        "days_used": 273,
+        "days_returned": 273,
+        "observed_day_fraction": 1.0,
+        "provenance": {
+          "sensor": "ERA5-Land daily aggregates",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "method": "FAO-56 Penman-Monteith, eq. 6, G = 0 at daily step",
+          "scale_m": 11000,
+          "note": "ET0 is computed from an 11 km region mean, not per pixel. A per-pixel ET0 raster would present 11 km of information at 10 m resolution."
+        },
+        "interpretation": "Reference evapotranspiration: what a short, well-watered grass surface would transpire here.",
+        "kcb": 0.215,
+        "kcb_basis": "ARBITRARY: Kcb = -0.1 + 1.44 * NDVI, published coefficients from other regions and crops, clamped to [0.0, 1.15]. Not validated in Sudan.",
+        "kcb_clamped": false,
+        "etc_mm": 386.7,
+        "etc_mm_per_day": 1.42,
+        "etc_caveat": "This is water REQUIRED, not water DELIVERED. Nothing in this engine measures delivery to a field.",
+        "irrigation_requirement_mm": null,
+        "irrigation_requirement_reason": "no daily rainfall series supplied, so supply cannot be subtracted from demand"
+      },
+      "yield_estimate": {
+        "status": "OK",
+        "claim_level": "relative",
+        "mean_ndvi": 0.2188,
+        "yield_t_ha": null,
+        "caveat": "Canopy greenness is not yield. Grain fill, harvest losses and terminal stress all break the relationship after the canopy has already been measured.",
+        "reason": "no calibrated yield model exists for sorghum; at least 30 local harvest measurements are needed before any tonnage is quoted"
+      },
+      "climate": {
+        "growing_degree_days": 5278.463440939084,
+        "gdd_base_c": 10.0,
+        "heat_stress_days": 80,
+        "heat_stress_threshold_c": 38.0,
+        "heat_stress_basis": "ARBITRARY: published crop figure, not a Sudanese trial",
+        "dry_spells": {
+          "longest_dry_spell_days": 173,
+          "flagged": true,
+          "threshold_days": 10,
+          "rain_floor_mm": 1.0,
+          "days_in_series": 273,
+          "basis": "ARBITRARY: hand-chosen dry-spell length and rain floor"
+        },
+        "season_vs_history": {
+          "this_season_mm": 228.0,
+          "historical_mean_mm": 249.5,
+          "historical_min_mm": 131.9,
+          "historical_max_mm": 317.2,
+          "percentile": 20.0,
+          "years_compared": 10,
+          "verdict": "drier than usual"
+        },
+        "sources": {
+          "temperature": "ERA5-Land daily aggregates",
+          "rainfall": "CHIRPS daily"
+        }
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 0.27558977138818747,
+          "MTCI": 0.6986828693188676,
+          "NDRE": 0.12998076660666413,
+          "S2REP": 711.050671715389
+        },
+        "relative_condition": "WITHIN SCHEME NORM",
+        "percentile_in_scheme": 50.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      },
+      "advisory": {
+        "field": "Field 2",
+        "language": "ar",
+        "items": [
+          {
+            "key": "stress",
+            "text": "لا مؤشّر دون عتبة الجوار."
+          },
+          {
+            "key": "thermal",
+            "text": "حقلك أدفأ بـ3.4°م من الأرض المحيطة — والحرارة تسبق تدهور النموّ المرئي بأيام."
+          },
+          {
+            "key": "rainfall",
+            "text": "سقط نحو 0.0 مم مطرًا في الأسبوعين الأخيرين."
+          },
+          {
+            "key": "nutrition",
+            "text": "حالة الكلوروفيل مقارنة بالمخطط: WITHIN SCHEME NORM. هذه مرتبة نسبية وليست قياسًا للنيتروجين."
+          }
+        ],
+        "withheld": [],
+        "attributes_cause": false,
+        "basis": {
+          "irrigation_deficit_mm": 25.0,
+          "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
+        },
+        "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      },
+      "advisory_en": {
+        "field": "Field 2",
+        "language": "en",
+        "items": [
+          {
+            "key": "stress",
+            "text": "no indicator below the neighbourhood threshold."
+          },
+          {
+            "key": "thermal",
+            "text": "your field is 3.4 degC warmer than the surrounding land — temperature moves days before visible vigour does."
+          },
+          {
+            "key": "rainfall",
+            "text": "about 0.0 mm of rain fell in the last 14 days."
+          },
+          {
+            "key": "nutrition",
+            "text": "chlorophyll condition within the scheme: WITHIN SCHEME NORM. This is a relative rank, not a nitrogen measurement."
+          }
+        ],
+        "withheld": [],
+        "attributes_cause": false,
+        "basis": {
+          "irrigation_deficit_mm": 25.0,
+          "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
+        },
+        "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      }
+    },
+    {
+      "name": "Field 3",
+      "properties": {
+        "name": "Field 3"
+      },
+      "reference_provenance": {
+        "reference_source": "NEIGHBOURHOOD: 3000 m buffer around the field",
+        "field_area_ha": 43.11,
+        "area_ratio": 82.78,
+        "buffer_basis": "ARBITRARY: 3 km is wide enough to contain other fields and narrow enough to stay in the same soil and climate",
+        "verdict_withheld": false
+      },
+      "crop_health": {
+        "readings": {
+          "vigour": {
+            "name": "vigour",
+            "status": "OK",
+            "value": 0.3878,
+            "unit": "",
+            "reason": null,
+            "threshold": 0.1135,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Crop vigour. The headline health number, and the slowest to move.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          },
+          "canopy_moisture": {
+            "name": "canopy_moisture",
+            "status": "OK",
+            "value": 0.1133,
+            "unit": "",
+            "reason": null,
+            "threshold": -0.0762,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Canopy water content. Falls BEFORE visible vigour does, so it is the earlier of the two warnings.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          },
+          "greenness": {
+            "name": "greenness",
+            "status": "OK",
+            "value": 0.2152,
+            "unit": "",
+            "reason": null,
+            "threshold": 0.041,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Enhanced vegetation index. Less prone to saturating over a dense canopy than NDVI.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          }
+        }
+      },
+      "thermal_stress": {
+        "status": "OK",
+        "value": 38.03,
+        "unit": "degC",
+        "sensor": "Landsat 8/9 ST_B10",
+        "n_scenes": 28,
+        "scale_m": 100,
+        "interpretation": "Land surface temperature. A transpiring crop is cooler than a stressed one, so a field warm relative to its neighbours is a direct water-stress signal - and it moves days before vigour does.",
+        "neighbourhood_c": 37.54,
+        "difference_c": 0.49,
+        "reading": "close to the surrounding land",
+        "difference_basis": "ARBITRARY: 1 degC is the band treated as indistinguishable"
+      },
+      "rainfall": {
+        "season_mm": 240.1,
+        "last_14d_mm": 0.0,
+        "rain_floor_mm": 5.0,
+        "rain_floor_basis": "ARBITRARY",
+        "sensor": "CHIRPS daily",
+        "sampled_as": "the CHIRPS cell containing this field (5500 m); rainfall is not resolved at field scale by any dataset here",
+        "why": "Without rainfall context, a stressed field cannot be told apart from a dry season. The two need different actions."
+      },
+      "soil": {
+        "status": "OK",
+        "class_code": 1,
+        "texture": "clay",
+        "sensor": "OpenLandMap USDA texture class, 250 m",
+        "caveat": "A global model, not a soil test. Useful for explaining differences between fields; not a substitute for sampling."
+      },
+      "water_requirement": {
+        "status": "OK",
+        "et0_mm": 1795.9,
+        "et0_mm_per_day": 6.58,
+        "days_used": 273,
+        "days_returned": 273,
+        "observed_day_fraction": 1.0,
+        "provenance": {
+          "sensor": "ERA5-Land daily aggregates",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "method": "FAO-56 Penman-Monteith, eq. 6, G = 0 at daily step",
+          "scale_m": 11000,
+          "note": "ET0 is computed from an 11 km region mean, not per pixel. A per-pixel ET0 raster would present 11 km of information at 10 m resolution."
+        },
+        "interpretation": "Reference evapotranspiration: what a short, well-watered grass surface would transpire here.",
+        "kcb": 0.458,
+        "kcb_basis": "ARBITRARY: Kcb = -0.1 + 1.44 * NDVI, published coefficients from other regions and crops, clamped to [0.0, 1.15]. Not validated in Sudan.",
+        "kcb_clamped": false,
+        "etc_mm": 822.5,
+        "etc_mm_per_day": 3.01,
+        "etc_caveat": "This is water REQUIRED, not water DELIVERED. Nothing in this engine measures delivery to a field.",
+        "irrigation_requirement_mm": null,
+        "irrigation_requirement_reason": "no daily rainfall series supplied, so supply cannot be subtracted from demand"
+      },
+      "yield_estimate": {
+        "status": "OK",
+        "claim_level": "relative",
+        "mean_ndvi": 0.3878,
+        "yield_t_ha": null,
+        "caveat": "Canopy greenness is not yield. Grain fill, harvest losses and terminal stress all break the relationship after the canopy has already been measured.",
+        "reason": "no calibrated yield model exists for sorghum; at least 30 local harvest measurements are needed before any tonnage is quoted"
+      },
+      "climate": {
+        "growing_degree_days": 5279.92221370711,
+        "gdd_base_c": 10.0,
+        "heat_stress_days": 78,
+        "heat_stress_threshold_c": 38.0,
+        "heat_stress_basis": "ARBITRARY: published crop figure, not a Sudanese trial",
+        "dry_spells": {
+          "longest_dry_spell_days": 164,
+          "flagged": true,
+          "threshold_days": 10,
+          "rain_floor_mm": 1.0,
+          "days_in_series": 273,
+          "basis": "ARBITRARY: hand-chosen dry-spell length and rain floor"
+        },
+        "season_vs_history": {
+          "this_season_mm": 246.5,
+          "historical_mean_mm": 263.9,
+          "historical_min_mm": 155.3,
+          "historical_max_mm": 321.2,
+          "percentile": 20.0,
+          "years_compared": 10,
+          "verdict": "drier than usual"
+        },
+        "sources": {
+          "temperature": "ERA5-Land daily aggregates",
+          "rainfall": "CHIRPS daily"
+        }
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 0.7334994564857614,
+          "MTCI": 2.327949273265405,
+          "NDRE": 0.2637983777229799,
+          "S2REP": 719.2918487583015
+        },
+        "relative_condition": "WITHIN SCHEME NORM",
+        "percentile_in_scheme": 50.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      },
+      "advisory": {
+        "field": "Field 3",
+        "language": "ar",
+        "items": [
+          {
+            "key": "stress",
+            "text": "لا مؤشّر دون عتبة الجوار."
+          },
+          {
+            "key": "rainfall",
+            "text": "سقط نحو 0.0 مم مطرًا في الأسبوعين الأخيرين."
+          },
+          {
+            "key": "nutrition",
+            "text": "حالة الكلوروفيل مقارنة بالمخطط: WITHIN SCHEME NORM. هذه مرتبة نسبية وليست قياسًا للنيتروجين."
+          }
+        ],
+        "withheld": [],
+        "attributes_cause": false,
+        "basis": {
+          "irrigation_deficit_mm": 25.0,
+          "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
+        },
+        "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      },
+      "advisory_en": {
+        "field": "Field 3",
+        "language": "en",
+        "items": [
+          {
+            "key": "stress",
+            "text": "no indicator below the neighbourhood threshold."
+          },
+          {
+            "key": "rainfall",
+            "text": "about 0.0 mm of rain fell in the last 14 days."
+          },
+          {
+            "key": "nutrition",
+            "text": "chlorophyll condition within the scheme: WITHIN SCHEME NORM. This is a relative rank, not a nitrogen measurement."
+          }
+        ],
+        "withheld": [],
+        "attributes_cause": false,
+        "basis": {
+          "irrigation_deficit_mm": 25.0,
+          "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
+        },
+        "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      }
+    },
+    {
+      "name": "Field 4",
+      "properties": {
+        "name": "Field 4"
+      },
+      "reference_provenance": {
+        "reference_source": "NEIGHBOURHOOD: 3000 m buffer around the field",
+        "field_area_ha": 43.1,
+        "area_ratio": 82.8,
+        "buffer_basis": "ARBITRARY: 3 km is wide enough to contain other fields and narrow enough to stay in the same soil and climate",
+        "verdict_withheld": false
+      },
+      "crop_health": {
+        "readings": {
+          "vigour": {
+            "name": "vigour",
+            "status": "OK",
+            "value": 0.4184,
+            "unit": "",
+            "reason": null,
+            "threshold": 0.1466,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Crop vigour. The headline health number, and the slowest to move.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          },
+          "canopy_moisture": {
+            "name": "canopy_moisture",
+            "status": "OK",
+            "value": 0.1193,
+            "unit": "",
+            "reason": null,
+            "threshold": -0.0801,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Canopy water content. Falls BEFORE visible vigour does, so it is the earlier of the two warnings.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          },
+          "greenness": {
+            "name": "greenness",
+            "status": "OK",
+            "value": 0.2378,
+            "unit": "",
+            "reason": null,
+            "threshold": 0.0606,
+            "threshold_basis": "DERIVED: median - 2.0 * robust sigma over the neighbourhood, computed this run",
+            "interpretation": "Enhanced vegetation index. Less prone to saturating over a dense canopy than NDVI.",
+            "sensor": "Sentinel-2 median",
+            "n_scenes": 75,
+            "scale_m": 10
+          }
+        }
+      },
+      "thermal_stress": {
+        "status": "OK",
+        "value": 35.36,
+        "unit": "degC",
+        "sensor": "Landsat 8/9 ST_B10",
+        "n_scenes": 28,
+        "scale_m": 100,
+        "interpretation": "Land surface temperature. A transpiring crop is cooler than a stressed one, so a field warm relative to its neighbours is a direct water-stress signal - and it moves days before vigour does.",
+        "neighbourhood_c": 36.06,
+        "difference_c": -0.7,
+        "reading": "close to the surrounding land",
+        "difference_basis": "ARBITRARY: 1 degC is the band treated as indistinguishable"
+      },
+      "rainfall": {
+        "season_mm": 243.9,
+        "last_14d_mm": 0.0,
+        "rain_floor_mm": 5.0,
+        "rain_floor_basis": "ARBITRARY",
+        "sensor": "CHIRPS daily",
+        "sampled_as": "the CHIRPS cell containing this field (5500 m); rainfall is not resolved at field scale by any dataset here",
+        "why": "Without rainfall context, a stressed field cannot be told apart from a dry season. The two need different actions."
+      },
+      "soil": {
+        "status": "OK",
+        "class_code": 1,
+        "texture": "clay",
+        "sensor": "OpenLandMap USDA texture class, 250 m",
+        "caveat": "A global model, not a soil test. Useful for explaining differences between fields; not a substitute for sampling."
+      },
+      "water_requirement": {
+        "status": "OK",
+        "et0_mm": 1805.8,
+        "et0_mm_per_day": 6.61,
+        "days_used": 273,
+        "days_returned": 273,
+        "observed_day_fraction": 1.0,
+        "provenance": {
+          "sensor": "ERA5-Land daily aggregates",
+          "date_start": "2022-07-01",
+          "date_end": "2023-03-31",
+          "method": "FAO-56 Penman-Monteith, eq. 6, G = 0 at daily step",
+          "scale_m": 11000,
+          "note": "ET0 is computed from an 11 km region mean, not per pixel. A per-pixel ET0 raster would present 11 km of information at 10 m resolution."
+        },
+        "interpretation": "Reference evapotranspiration: what a short, well-watered grass surface would transpire here.",
+        "kcb": 0.502,
+        "kcb_basis": "ARBITRARY: Kcb = -0.1 + 1.44 * NDVI, published coefficients from other regions and crops, clamped to [0.0, 1.15]. Not validated in Sudan.",
+        "kcb_clamped": false,
+        "etc_mm": 906.5,
+        "etc_mm_per_day": 3.32,
+        "etc_caveat": "This is water REQUIRED, not water DELIVERED. Nothing in this engine measures delivery to a field.",
+        "irrigation_requirement_mm": null,
+        "irrigation_requirement_reason": "no daily rainfall series supplied, so supply cannot be subtracted from demand"
+      },
+      "yield_estimate": {
+        "status": "OK",
+        "claim_level": "relative",
+        "mean_ndvi": 0.4184,
+        "yield_t_ha": null,
+        "caveat": "Canopy greenness is not yield. Grain fill, harvest losses and terminal stress all break the relationship after the canopy has already been measured.",
+        "reason": "no calibrated yield model exists for sorghum; at least 30 local harvest measurements are needed before any tonnage is quoted"
+      },
+      "climate": {
+        "growing_degree_days": 5288.400859883061,
+        "gdd_base_c": 10.0,
+        "heat_stress_days": 80,
+        "heat_stress_threshold_c": 38.0,
+        "heat_stress_basis": "ARBITRARY: published crop figure, not a Sudanese trial",
+        "dry_spells": {
+          "longest_dry_spell_days": 164,
+          "flagged": true,
+          "threshold_days": 10,
+          "rain_floor_mm": 1.0,
+          "days_in_series": 273,
+          "basis": "ARBITRARY: hand-chosen dry-spell length and rain floor"
+        },
+        "season_vs_history": {
+          "this_season_mm": 236.1,
+          "historical_mean_mm": 254.7,
+          "historical_min_mm": 141.1,
+          "historical_max_mm": 322.0,
+          "percentile": 20.0,
+          "years_compared": 10,
+          "verdict": "drier than usual"
+        },
+        "sources": {
+          "temperature": "ERA5-Land daily aggregates",
+          "rainfall": "CHIRPS daily"
+        }
+      },
+      "nutrition": {
+        "status": "OK",
+        "chlorophyll_indices": {
+          "CIre": 0.7854912015082327,
+          "MTCI": 2.3302001034843367,
+          "NDRE": 0.2803653535217107,
+          "S2REP": 718.7460192396844
+        },
+        "relative_condition": "WITHIN SCHEME NORM",
+        "percentile_in_scheme": 50.0,
+        "sufficiency_index": null,
+        "sufficiency_reading": null,
+        "nitrogen_pct": null,
+        "nitrogen_confidence": null,
+        "claim_level": "relative",
+        "reason": null,
+        "caveat": "Chlorophyll indices respond to nitrogen, and also to water stress, salinity, disease, sulphur and iron deficiency and heat. A low value identifies a struggling crop; it does not by itself identify the cause."
+      },
+      "advisory": {
+        "field": "Field 4",
+        "language": "ar",
+        "items": [
+          {
+            "key": "stress",
+            "text": "لا مؤشّر دون عتبة الجوار."
+          },
+          {
+            "key": "rainfall",
+            "text": "سقط نحو 0.0 مم مطرًا في الأسبوعين الأخيرين."
+          },
+          {
+            "key": "nutrition",
+            "text": "حالة الكلوروفيل مقارنة بالمخطط: WITHIN SCHEME NORM. هذه مرتبة نسبية وليست قياسًا للنيتروجين."
+          }
+        ],
+        "withheld": [],
+        "attributes_cause": false,
+        "basis": {
+          "irrigation_deficit_mm": 25.0,
+          "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
+        },
+        "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      },
+      "advisory_en": {
+        "field": "Field 4",
+        "language": "en",
+        "items": [
+          {
+            "key": "stress",
+            "text": "no indicator below the neighbourhood threshold."
+          },
+          {
+            "key": "rainfall",
+            "text": "about 0.0 mm of rain fell in the last 14 days."
+          },
+          {
+            "key": "nutrition",
+            "text": "chlorophyll condition within the scheme: WITHIN SCHEME NORM. This is a relative rank, not a nitrogen measurement."
+          }
+        ],
+        "withheld": [],
+        "attributes_cause": false,
+        "basis": {
+          "irrigation_deficit_mm": 25.0,
+          "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
+        },
+        "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      }
+    }
+  ],
+  "limitations": [
+    "Thermal is 100 m: on a field under about 2 ha every pixel mixes the crop with its surroundings.",
+    "Nutrition is a RELATIVE chlorophyll condition unless a calibrated model exists for this crop. Nitrogen has no direct spectral signature; water stress, salinity, disease and heat all lower chlorophyll too.",
+    "Crop water requirement is what the crop NEEDED. Nothing here measures what it received.",
+    "Yield is refused without local harvest calibration.",
+    "The 7-day outlook is a ~28 km global model: the weather over the area, not over a field. No alert is raised from it.",
+    "Soil texture is a global model at 250 m, not a soil test.",
+    "Field rankings are an ordering, not a calibrated health score."
+  ],
+  "ranking": {
+    "ranked": [
+      {
+        "name": "Field 2",
+        "vigour": 0.2188,
+        "below_threshold": false,
+        "drivers": [
+          "3.41 degC warmer than its surroundings"
+        ],
+        "rank": 1
+      },
+      {
+        "name": "Field 1",
+        "vigour": 0.3002,
+        "below_threshold": false,
+        "drivers": [],
+        "rank": 2
+      },
+      {
+        "name": "Field 3",
+        "vigour": 0.3878,
+        "below_threshold": false,
+        "drivers": [],
+        "rank": 3
+      },
+      {
+        "name": "Field 4",
+        "vigour": 0.4184,
+        "below_threshold": false,
+        "drivers": [],
+        "rank": 4
+      }
+    ],
+    "unmeasured": [],
+    "basis": "Fields ordered by whether vigour fell below the neighbourhood threshold, then by vigour. This is an ordering, not a score: no calibrated health scale exists, and one is not invented here.",
+    "unmeasured_note": "Fields with no usable vigour reading are listed separately, not ranked last. Unmeasured is neither healthy nor sick."
+  },
+  "forecast": {
+    "status": "OK",
+    "horizon_days": 7,
+    "mean_temperature_c": 33.3,
+    "mean_precipitation_mm_per_step": 0.32,
+    "forecast_steps": 1768,
+    "steps_with_temperature": 1768,
+    "steps_with_precipitation": 1755,
+    "provenance": {
+      "sensor": "NOAA GFS 0.25 degree",
+      "scale_m": 27830,
+      "searched_from": "2026-08-27",
+      "note": "A ~28 km global model. This is the outlook over the scheme, not over a field. Rainfall is the least skilful variable in it."
+    },
+    "caveat": "A forecast is not a measurement. Nothing else in this platform depends on it, and no alert is raised from it."
+  },
+  "note": "DEMONSTRATION DATA. These are REAL satellite measurements, computed live from Earth Engine, over four ARBITRARY 40-hectare squares placed on the Gezira plain near Wad Medani. They belong to no farm and to no farmer. They exist so the farmer app has something to draw when the repository is first cloned. Do not cite any figure here as a measurement of anyone's field: the imagery is real and the field boundaries are invented, which is the most misleading of the possible combinations.",
+  "note_ar": "بيانات عرض توضيحي. هذه قياسات أقمار صناعية حقيقية، محسوبة حيًّا من Earth Engine، فوق أربعة مربّعات اعتباطية مساحة كلٍّ منها 40 هكتارًا على سهل الجزيرة قرب ود مدني. لا تخصّ أي مزرعة ولا أي مزارع. وُضعت كي يجد تطبيق المزارع ما يرسمه عند أول استنساخ للمستودع. لا تُقتبس أي قيمة هنا كقياس لحقل أحد: الصور حقيقية والحدود مخترعة، وهي أكثر التركيبات تضليلًا."
+}

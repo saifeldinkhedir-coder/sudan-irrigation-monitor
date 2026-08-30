@@ -29,5 +29,10 @@ venv/
 # pushed before anyone noticed. Match the word anywhere in the name instead.
 *results*.json
 *_results.json
+*_report.json
 irrigation_results.json
+# The two files under docs/ are deliberate: they are the demo data the
+# apps draw when the repo is first cloned, and both carry a note saying
+# the measurements are real and the boundaries are invented.
 !docs/sample_results.json
+!docs/farm_report_demo.json

@@ -27,6 +27,9 @@ src/
   attribution.py               Stage 3: stratified control for soil/crop/planting
                                date, adjusted gap + CI, placebo test, green-up,
                                persistence, negative controls.
+  agri_engine.py               THE AGRICULTURE ENGINE - fields in, farm report
+                               out. Imports nothing from engine.py.
+  farm_cli.py                  agriculture entry point (--fields only).
   network.py                   continuity (where the water stopped), siltation
                                candidates, water-use efficiency + its refusal,
                                radar resolvability qualifier.
@@ -41,14 +44,17 @@ src/
                                whole pipeline runs with no network / auth / quota.
   cli.py                       command-line entry point.
 dashboard/
-  app.py, data.py              Stage 2: Streamlit manager view (+ tested data logic).
+  app.py, data.py              scheme-MANAGER view: canals, equity, continuity.
+farmer_app/
+  app.py, view.py              FARMER view: map of fields, every measured
+                               variable, nutrition ladder, advisory.
 geolibre_plugin/
   plugin.json, forms/, bridge.py   Stage 4: manifest, field form, two-way bridge.
 geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
   canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
                                against what the engine requires, before a run.
-tests/                         257 tests; run with no Earth Engine.
+tests/                         335 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -119,7 +125,7 @@ one is a hazard rather than a missing nicety.
 pip install -r requirements.txt        # earthengine-api, numpy, streamlit, pytest
 
 # tests need NO Earth Engine and no auth:
-pytest -q                              # 257 tests
+pytest -q                              # 335 tests
 
 # run the FULL pipeline offline against the mock backend (no auth, no quota):
 python - <<'PY'
@@ -217,7 +223,7 @@ vertical noise, so a DEM would dress an assumption up as a measurement.
 
 ## Status — honest
 
-**Logic tested, plumbing tested, measurements unvalidated.** All 257 tests pass
+**Logic tested, plumbing tested, measurements unvalidated.** All 335 tests pass
 with no Earth Engine. The mock backend runs the whole `analyse()` pipeline
 offline, so the wiring is verified — but the mock returns synthetic values, so it
 proves the pipeline is *wired* correctly, never that the *measurements* are
@@ -244,3 +250,61 @@ grants nor alters.
 If you publish figures produced by this software, please carry forward the
 limitations recorded in `NOTICE` and in every result's own `limitations` block.
 They are the conditions under which the numbers mean anything.
+
+## Two products, one measurement core
+
+The repository holds **two engines with different input contracts**, because they
+answer different questions for different people and forcing them into one entry
+point would make both worse.
+
+| | Irrigation | Agriculture |
+|---|---|---|
+| Entry point | `src/cli.py` | `src/farm_cli.py` |
+| Engine | `engine.py` + `network.py` | `agri_engine.py` |
+| Needs | canal centrelines + command areas | **field polygons only** |
+| Interface | `dashboard/` — scheme manager | `farmer_app/` — the farmer |
+| Question | did water arrive, was it shared fairly | how is my crop, what do I do this week |
+
+`agri_engine` imports nothing from `engine`, and a test parses the AST to keep it
+that way. A farmer has fields and no canal geometry, may not be in a gravity
+scheme at all, and should never be asked for a command-area polygon to find out
+how their crop is doing.
+
+```bash
+export EE_PROJECT=your-ee-project
+python src/farm_cli.py --fields my_fields.geojson --season 2022 --crop sorghum --out farm_report.json
+streamlit run farmer_app/app.py --server.address 127.0.0.1 -- --report farm_report.json --fields my_fields.geojson
+```
+
+### The map has three colours, not two
+
+A map is more persuasive than a table, and nobody reads a colour sceptically. A
+field drawn confident green because nothing could be measured on it would be a
+worse lie than a blank cell. So **grey — not measured — is never collapsed into
+green or red**, and the legend says so in words: *"this is NOT a healthy field,
+it is an unseen one."*
+
+The same four-state classification drives the map, the ranked list and the header
+count. An earlier version marked the list from a two-state flag while the map
+used four, and a live run showed one field amber on the map, green in the list,
+and "need attention: 0" in the header — three answers to one question on one
+screen.
+
+### What the farmer report contains
+
+Vigour, canopy moisture and greenness with thresholds derived from the field's
+own 3 km neighbourhood; surface temperature against the surrounding land;
+rainfall for the season and the last fortnight; reference ET0 and crop water
+**needed**; growing degree days, heat-stress days, longest dry spell, and this
+season against the site's own ten-year history; soil texture; the nutrition
+ladder; a gated yield line; and a rule-based advisory in Arabic and English.
+
+Every row names its sensor **and the scale it was measured at**, because a 100 m
+thermal reading and a 10 m vigour reading are not the same kind of statement
+about a small field, and the farmer should be able to see which is which without
+reading documentation.
+
+Fields are ranked by which needs attention first. That is an **ordering, not a
+score**: no calibrated health scale exists, and one is not invented. Fields that
+could not be measured are set aside rather than sinking to the bottom of the
+list, because unmeasured is neither healthy nor sick.
