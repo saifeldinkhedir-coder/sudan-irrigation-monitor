@@ -219,6 +219,25 @@ T = {
         "ranked last. Unmeasured is neither healthy nor sick."),
     "warmer_than": ("أدفأ بـ{d}°م من محيطه",
                     "{d} degC warmer than its surroundings"),
+    "draw_here": ("ارسم حقلك", "Draw your field"),
+    "draw_help": (
+        "استخدم أداة المضلّع أو المستطيل يسار الخريطة لرسم حدود حقلك على صورة "
+        "القمر، أو ابحث عن مكانك أعلى اليمين.",
+        "Use the polygon or rectangle tool at the left of the map to draw your "
+        "field boundary on the satellite image, or search for your location at "
+        "the top right."),
+    "drawn_count": ("رُسمت {n} قطعة", "{n} drawn"),
+    "save_fields": ("احفظ الحقول", "Save fields"),
+    "saved_to": ("حُفظت في", "Saved to"),
+    "then_run": ("ثم شغّل المحرّك عليها:", "Then run the engine on them:"),
+    "rejected": ("مرفوضة", "Rejected"),
+    "why_q": ("لماذا؟", "Why?"),
+    "method_note": ("عن طريقة الحساب", "About the method"),
+    "map_caption": (
+        "صورة القمر تُظهر أين حقلك، لا كيف حاله هذا الموسم — الحال في الألوان "
+        "والأرقام.",
+        "The satellite image shows where your field is, not how it is doing "
+        "this season — that is in the colours and the numbers."),
     "sortable": ("جدول قابل للفرز", "Sortable table"),
     "download_csv": ("تنزيل CSV", "Download CSV"),
     "sortable_caveat": (

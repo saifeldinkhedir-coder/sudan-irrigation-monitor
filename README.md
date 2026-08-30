@@ -54,7 +54,7 @@ geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
   canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
                                against what the engine requires, before a run.
-tests/                         426 tests; run with no Earth Engine.
+tests/                         438 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -125,7 +125,7 @@ one is a hazard rather than a missing nicety.
 pip install -r requirements.txt        # earthengine-api, numpy, streamlit, pytest
 
 # tests need NO Earth Engine and no auth:
-pytest -q                              # 426 tests
+pytest -q                              # 438 tests
 
 # run the FULL pipeline offline against the mock backend (no auth, no quota):
 python - <<'PY'
@@ -223,7 +223,7 @@ vertical noise, so a DEM would dress an assumption up as a measurement.
 
 ## Status — honest
 
-**Logic tested, plumbing tested, measurements unvalidated.** All 426 tests pass
+**Logic tested, plumbing tested, measurements unvalidated.** All 438 tests pass
 with no Earth Engine. The mock backend runs the whole `analyse()` pipeline
 offline, so the wiring is verified — but the mock returns synthetic values, so it
 proves the pipeline is *wired* correctly, never that the *measurements* are
@@ -430,3 +430,43 @@ than blank. A test fails if any English phrase appears in the Arabic table.
 across, a field shares most of them with its own surroundings, so the difference
 between the two is suppressed by resolution rather than measured. The row now
 carries that rather than letting a suspiciously round zero read as a finding.
+
+### The map is a workspace, not an illustration
+
+The first map drew the fields correctly and was useless for the job — it was
+built to display a result rather than to be worked on. Three symptoms of one
+mistake:
+
+**The basemap was a road map.** A farmer looking at a pale rectangle over grey
+streets cannot tell whether the outline sits on their field, and checking that is
+the first thing anyone does with a farm map. It is now Esri World Imagery: the
+reference the drawing is checked against, not decoration.
+
+**Fields could only arrive as a file path.** That asked a farmer to produce a
+GeoJSON to describe land they can see out of the window. There is now a polygon
+and rectangle tool on the map — draw the boundary on the imagery, see the area in
+hectares, and the file is written for you with the command to run it.
+
+**There was no way to reach your own land.** A place search sits on the map, so
+someone starting from nothing does not need their coordinates.
+
+Only polygons and rectangles are offered: a circle or a marker cannot be a field
+boundary, and offering a tool whose output the engine would reject wastes an
+afternoon. A drawn shape below 0.1 ha is refused *there*, with the reason, rather
+than failing three steps later in a console.
+
+The imagery shows where a field **is**. It says nothing about how the crop is
+doing this season — that is the coloured overlay and the numbers beside it, and
+the caption says so.
+
+### Method moved out of the way
+
+The app explained itself at the reader. Under "which field first" sat a paragraph
+about how the sort works; under a two-number forecast, two sentences on model
+resolution; beside the water figure, a note on integration method. All of it true
+and none of it what a farmer opens the app to find out.
+
+The caveats that change a conclusion stay inline — *unmeasured is not healthy*,
+*needed is not received*. Everything that explains **how** a number was reached
+moved behind a single «لماذا؟» / *Why?* — one click for anyone checking the work,
+invisible to everyone else. Nothing was deleted.

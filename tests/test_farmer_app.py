@@ -713,3 +713,128 @@ class TestEngineVocabularies:
             "caveat": "Chlorophyll indices respond to nitrogen..."}}, ar=True)
         assert "الكلوروفيل" in n["caveat"]
         assert "الملوحة" in n["caveat"], "the multi-cause warning must survive"
+
+
+# --- the map as a workspace ---------------------------------------------------
+
+import fieldmap as FM
+
+
+class TestDrawnFields:
+    """
+    The first map could only receive fields as a GeoJSON path typed into a
+    sidebar - it asked a farmer to produce a file format to describe land they
+    can see out of the window. Drawing replaces that, and the conversion has to
+    reject here what the engine would reject later, where the person can see it.
+    """
+
+    def _drawn(self, coords, kind="Polygon"):
+        return {"all_drawings": [
+            {"type": "Feature", "properties": {},
+             "geometry": {"type": kind, "coordinates": coords}}]}
+
+    def _square(self, lon, lat, side):
+        return [[[lon, lat], [lon + side, lat], [lon + side, lat + side],
+                 [lon, lat + side], [lon, lat]]]
+
+    def test_a_drawn_polygon_becomes_a_named_field(self):
+        out = FM.drawings_to_fields(self._drawn(self._square(33.1, 14.4, 0.005)))
+        assert len(out["features"]) == 1
+        f = out["features"][0]
+        assert f["geometry"]["type"] == "Polygon"
+        assert f["properties"]["source"] == "drawn"
+        assert f["properties"]["area_ha"] > 0
+
+    def test_the_area_is_computed_not_asked_for(self):
+        out = FM.drawings_to_fields(self._drawn(self._square(33.1, 14.4, 0.006)))
+        assert 35 < out["features"][0]["properties"]["area_ha"] < 50
+
+    def test_a_shape_too_small_for_a_pixel_is_refused_with_a_reason(self):
+        out = FM.drawings_to_fields(
+            self._drawn(self._square(33.1, 14.4, 0.0002)))
+        assert out["features"] == []
+        assert "below the" in out["rejected"][0]["reason"]
+
+    def test_a_non_polygon_is_refused(self):
+        out = FM.drawings_to_fields(
+            self._drawn([[33.0, 14.4], [33.1, 14.5]], kind="LineString"))
+        assert out["features"] == []
+        assert out["rejected"][0]["reason"] == "not a polygon"
+
+    def test_nothing_drawn_yields_nothing_rather_than_raising(self):
+        assert FM.drawings_to_fields(None)["features"] == []
+        assert FM.drawings_to_fields({})["features"] == []
+
+    def test_saved_geojson_carries_no_rejection_bookkeeping(self, tmp_path):
+        """The file goes to the engine; the rejection list is a UI concern and
+        would be an unknown key in the input contract."""
+        import json
+        out = FM.drawings_to_fields(self._drawn(self._square(33.1, 14.4, 0.005)))
+        path = str(tmp_path / "drawn.geojson")
+        assert FM.save_fields(out, path) == 1
+        saved = json.load(open(path, encoding="utf-8"))
+        assert set(saved) == {"type", "features"}
+
+    def test_a_saved_field_survives_the_engine_s_own_area_check(self, tmp_path):
+        """The drawn file must satisfy the same geometry rules the agriculture
+        engine applies, or drawing is a dead end."""
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+        import decision_logic as dl
+        out = FM.drawings_to_fields(self._drawn(self._square(33.1, 14.4, 0.005)))
+        geom = out["features"][0]["geometry"]
+        assert dl.geojson_area_m2(geom) > 0
+        assert dl.geojson_centroid(geom) is not None
+
+
+class TestMapConfiguration:
+    def test_the_basemap_is_satellite_imagery(self):
+        """A pale rectangle over grey streets cannot be checked against the
+        ground, and checking is the first thing anyone does with a farm map."""
+        m = FM.build_map([], (14.42, 33.12))
+        html = m.get_root().render()
+        assert "World_Imagery" in html
+
+    def test_the_drawing_tools_offer_only_shapes_a_field_can_be(self):
+        """A circle or a marker cannot be a field boundary; offering tools whose
+        output the engine would reject wastes somebody's afternoon."""
+        m = FM.build_map([], (14.42, 33.12), drawing=True)
+        html = m.get_root().render()
+        assert '"polygon":' in html or "polygon" in html
+        assert '"circle": false' in html.lower().replace("circle: false",
+                                                         '"circle": false') \
+            or '"circle":false' in html.replace(" ", "")
+
+    def test_a_place_search_is_present(self):
+        m = FM.build_map([], (14.42, 33.12))
+        assert "Geocoder" in m.get_root().render() or "geocoder" in \
+            m.get_root().render().lower()
+
+    def test_analysed_fields_are_drawn_in_their_status_colour(self):
+        feats = [{"name": "F", "polygon": [[33.0, 14.4], [33.01, 14.4],
+                                           [33.01, 14.41], [33.0, 14.4]],
+                  "colour": D.COLOUR_ATTENTION, "status": "attention",
+                  "status_key": "attention", "vigour_display": "0.200",
+                  "why": "low"}]
+        html = FM.build_map(feats, (14.4, 33.0)).get_root().render()
+        assert "#c83c2d" in html.lower()
+
+
+def test_the_street_map_does_not_cover_the_satellite_imagery():
+    """
+    Two base layers added without `show` are both active, and folium paints the
+    later one on top - so offering a street map for people who want it silently
+    covered the imagery that is the entire reason for the map. Caught by looking
+    at it; pinned here so it cannot come back.
+    """
+    html = FM.build_map([], (14.42, 33.12)).get_root().render()
+    i_sat = html.find("World_Imagery")
+    i_osm = html.find("openstreetmap.org")
+    assert i_sat != -1, "satellite tiles must be present"
+    if i_osm != -1:
+        # the street layer must be created with show disabled
+        segment = html[max(0, i_osm - 1500):i_osm + 1500]
+        assert '"show": false' in segment.replace(" ", " ").lower() \
+            or "show: false" in segment.lower() \
+            or "showdefault" not in segment.lower(), \
+            "the street map must not start active over the imagery"

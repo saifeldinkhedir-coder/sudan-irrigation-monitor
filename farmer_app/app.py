@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import view as D
 import record as R
 import ui
+import fieldmap as FM
 
 
 def _args():
@@ -91,8 +92,12 @@ def main():
         return
 
     if report.get("note"):
-        ui.note(report.get("note_ar") if ar and report.get("note_ar")
-                else report["note"], "warn", ar)
+        txt = (report.get("note_ar") if ar and report.get("note_ar")
+               else report["note"])
+        head = txt.split(".")[0] + "."
+        ui.note(head, "warn", ar)
+        with st.expander(ui.t("why_q", ar)):
+            st.caption(txt)
 
     att = D.attention_list(report, ar)
     season = report.get("season", {})
@@ -107,21 +112,22 @@ def main():
 
     field_fc = (_load(fields_path)
                 if fields_path and os.path.exists(fields_path) else None)
-    if field_fc:
-        _render_map(D.map_features(report, field_fc, ar), ar)
-    else:
-        ui.note(ui.t("no_map", ar), "", ar)
+    _render_map(report, field_fc, ar)
 
     # ------------------------------------------------------- attention order
-    ui.section(ui.t("which_first", ar), ui.t("ranking_basis", ar), ar)
+    ui.section(ui.t("which_first", ar), "", ar)
     for r in att["ranked"]:
         ui.field_card(r["rank"], r["name"],
                       r.get("status_label", r["status"]), r["status"],
                       r["vigour"], r["why"], r["drivers"], ar)
     if att["unmeasured"]:
+        # This one stays inline: it changes what the reader should conclude
+        # about a field, which is different from explaining how the sort works.
         ui.note(ui.t("unmeasured_warn", ar)
                 + ", ".join(u["name"] for u in att["unmeasured"])
                 + ". " + ui.t("unmeasured_note", ar), "warn", ar)
+    with st.expander(ui.t("why_q", ar)):
+        st.caption(ui.t("ranking_basis", ar))
 
     # --------------------------------------------------------- field detail
     ui.section(ui.t("field_detail", ar), "", ar)
@@ -140,24 +146,68 @@ def main():
             st.markdown(f"- {lim}")
 
 
-def _render_map(feats, ar):
-    if not feats:
+def _render_map(report, field_fc, ar):
+    """
+    The map is a workspace, not an illustration.
+
+    Satellite imagery underneath so the drawing can be checked against the
+    ground, a polygon tool so a field can be defined by drawing it rather than
+    by producing a GeoJSON file, and a place search so somebody starting from
+    nothing can reach their own land.
+    """
+    feats = D.map_features(report, field_fc, ar) if field_fc else []
+    centre = _map_centre(feats, report)
+
+    ui.note(ui.t("draw_help", ar), "", ar)
+    state = FM.render(feats, centre, key="main_map", drawing=True)
+    st.caption(ui.t("map_caption", ar))
+
+    if feats:
+        ui.legend([(key, lbl[0] if ar else lbl[1],
+                    meaning[0] if ar else meaning[1])
+                   for key, lbl, meaning in D.LEGEND_BI], ar)
+
+    _handle_drawings(state, ar)
+
+
+def _map_centre(feats, report):
+    """Centre on the drawn fields if there are any, else on Gezira - a sensible
+    place for this tool to open rather than the middle of the ocean."""
+    pts = [p for f in feats for p in f["polygon"]]
+    if pts:
+        return (sum(p[1] for p in pts) / len(pts),
+                sum(p[0] for p in pts) / len(pts))
+    return (14.42, 33.12)
+
+
+def _handle_drawings(state, ar):
+    """Turn whatever was drawn into fields the engine can read."""
+    drawn = FM.drawings_to_fields(state)
+    n = len(drawn["features"])
+    if not n and not drawn["rejected"]:
         return
-    lon, lat = _centre(feats)
-    layer = pdk.Layer(
-        "PolygonLayer", feats, get_polygon="polygon",
-        get_fill_color="colour", get_line_color=[255, 255, 255, 220],
-        line_width_min_pixels=1.5, pickable=True, auto_highlight=True)
-    st.pydeck_chart(pdk.Deck(
-        layers=[layer],
-        initial_view_state=pdk.ViewState(longitude=lon, latitude=lat,
-                                         zoom=11.5, pitch=0),
-        tooltip={"html": "<b>{name}</b><br/>{status} · NDVI {vigour_display}"
-                         "<br/>{why}"},
-        map_style="light"), height=380)
-    ui.legend([(key, lbl[0] if ar else lbl[1],
-                meaning[0] if ar else meaning[1])
-               for key, lbl, meaning in D.LEGEND_BI], ar)
+
+    ui.section(ui.t("draw_here", ar), "", ar)
+    if drawn["rejected"]:
+        for r in drawn["rejected"]:
+            ui.note(f"{ui.t('rejected', ar)} #{r['index']}: {r['reason']}",
+                    "warn", ar)
+    if not n:
+        return
+
+    total_ha = sum(f["properties"]["area_ha"] for f in drawn["features"])
+    ui.stats([(ui.t("drawn_count", ar).format(n=n), f"{total_ha:.1f} ha", None)])
+
+    c1, c2 = st.columns([2, 3])
+    out = c1.text_input("GeoJSON", "my_fields.geojson",
+                        label_visibility="collapsed")
+    if c2.button(ui.t("save_fields", ar), type="primary"):
+        written = FM.save_fields(drawn, out)
+        st.success(f"{ui.t('saved_to', ar)} {out} — {written}")
+        st.caption(ui.t("then_run", ar))
+        st.code(f"python src/farm_cli.py --fields {out} "
+                f"--season 2022 --crop sorghum --out farm_report.json",
+                language="bash")
 
 
 def _render_field(rec, ar):
@@ -193,12 +243,18 @@ def _render_field(rec, ar):
         else:
             ui.variables_table(rows, ar)
 
+        # Method and provenance move behind one affordance. They are why the
+        # numbers can be trusted, not what to do about them, and a farmer
+        # opening the app to see which field needs water should not have to
+        # read past a paragraph on integration method to find out.
         note = D.etc_method_note(rec, ar)
-        if note:
-            ui.note(note, "warn" if note.startswith("⚠️") else "", ar)
-        for r in rows:
-            if r.get("reason"):
-                ui.note(f"<b>{r['variable']}</b> — {r['reason']}", "", ar)
+        reasons = [r for r in rows if r.get("reason")]
+        if note or reasons:
+            with st.expander(ui.t("method_note", ar)):
+                if note:
+                    st.caption(note)
+                for r in reasons:
+                    st.caption(f"**{r['variable']}** — {r['reason']}")
 
         series = rec.get("series") or {}
         if series.get("status") == "OK" and series.get("dates"):
@@ -220,7 +276,9 @@ def _render_field(rec, ar):
             st.markdown(f"**{n['headline']}**")
             if n.get("next_step"):
                 ui.note(ui.t("stronger_claim", ar) + n["next_step"], "", ar)
-            ui.note(n.get("caveat", ""), "", ar)
+            if n.get("caveat"):
+                with st.expander(ui.t("why_q", ar)):
+                    st.caption(n["caveat"])
         else:
             ui.note(n["reason"], "", ar)
 
@@ -254,8 +312,9 @@ def _render_forecast(report, ar):
          f"{f.get('mean_precipitation_mm_per_step')} mm"
          if f.get("mean_precipitation_mm_per_step") is not None else "—", None),
     ])
-    ui.note((f.get("provenance", {}) or {}).get("note", "")
-            + " " + f.get("caveat", ""), "warn", ar)
+    with st.expander(ui.t("why_q", ar)):
+        st.caption((f.get("provenance", {}) or {}).get("note", "")
+                   + " " + f.get("caveat", ""))
 
 
 if __name__ == "__main__":

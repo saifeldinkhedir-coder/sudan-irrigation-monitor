@@ -5,3 +5,5 @@ pandas>=2.0                 # dashboard tables
 pytest>=7.0                 # tests
 # scipy is optional: if present, attribution uses exact t critical values;
 # if absent, it falls back to a built-in table (no functional difference for CIs).
+folium>=0.17                 # the working map: satellite tiles, draw tool
+streamlit-folium>=0.20      # returns drawn shapes back to Python
