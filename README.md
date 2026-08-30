@@ -54,7 +54,7 @@ geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
   canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
                                against what the engine requires, before a run.
-tests/                         382 tests; run with no Earth Engine.
+tests/                         402 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -125,7 +125,7 @@ one is a hazard rather than a missing nicety.
 pip install -r requirements.txt        # earthengine-api, numpy, streamlit, pytest
 
 # tests need NO Earth Engine and no auth:
-pytest -q                              # 382 tests
+pytest -q                              # 402 tests
 
 # run the FULL pipeline offline against the mock backend (no auth, no quota):
 python - <<'PY'
@@ -223,7 +223,7 @@ vertical noise, so a DEM would dress an assumption up as a measurement.
 
 ## Status — honest
 
-**Logic tested, plumbing tested, measurements unvalidated.** All 382 tests pass
+**Logic tested, plumbing tested, measurements unvalidated.** All 402 tests pass
 with no Earth Engine. The mock backend runs the whole `analyse()` pipeline
 offline, so the wiring is verified — but the mock returns synthetic values, so it
 proves the pipeline is *wired* correctly, never that the *measurements* are
@@ -361,3 +361,32 @@ can find later.
 
 Local databases (`*.db`) and submitted photographs (`observations/`) are
 gitignored: they hold real people's fields, coordinates and money.
+
+### The farmer app is Arabic first
+
+The user is a farmer in Sudan. An interface whose chrome is English and whose
+advice is Arabic asks the reader to switch language mid-sentence to use their own
+tool — and the sentence they would switch for is usually the caveat, which is the
+part that most needs to be understood. So the whole page flips: direction,
+labels, status names, the legend, the variables table, and the reasons behind
+every ranking. English is one click away.
+
+Sensor names, units and dates are deliberately **not** translated. "Sentinel-2"
+and "100 m" are not language, and translating them would make the provenance
+harder to check rather than easier to read.
+
+Layout, colour tokens and copy live in `farmer_app/ui.py`; the display decisions
+in `view.py`; `app.py` is the sequence of what to show. A test asserts the CSS
+hex palette and the pydeck RGBA palette describe the same four colours, so the
+map, the chips and the legend cannot drift into disagreeing about what a colour
+means. Another asserts no label is identical in both languages, which is almost
+always an untranslated one that slipped through.
+
+### Thermal now says when a field is too small for it
+
+Landsat thermal is 100 m. A field spanning fewer than about two thermal pixels
+shares most of them with its own surroundings, so the difference between field
+and neighbourhood is suppressed by resolution rather than measured — the same
+class of error as a stress threshold a field sets for itself. The engine reports
+how many pixels across the field is and whether that is enough, rather than
+leaving the reader to work it out from a suspiciously round zero.

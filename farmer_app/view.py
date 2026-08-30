@@ -32,23 +32,106 @@ COLOUR_WATCH = [235, 165, 55, 180]         # measured, low within the farm
 COLOUR_OK = [70, 150, 95, 170]             # measured, not low
 COLOUR_UNMEASURED = [130, 130, 135, 130]   # NOT measured - never green, never red
 
-LEGEND = [
-    ("needs attention", COLOUR_ATTENTION,
-     "vigour below the threshold derived from this field's own neighbourhood"),
-    ("watch", COLOUR_WATCH,
-     "measured, and low compared with the other fields on this farm"),
-    ("ok", COLOUR_OK, "measured, and not low"),
-    ("not measured", COLOUR_UNMEASURED,
-     "no usable satellite reading — this is NOT a healthy field, it is an "
-     "unseen one"),
+# Bilingual throughout. An interface whose chrome is Arabic and whose content is
+# English asks a farmer to switch language mid-sentence to use their own tool -
+# and the sentence they would have to switch for is usually the caveat, which is
+# the part that most needs to be understood.
+LEGEND_BI = [
+    ("attention", ("تحتاج انتباهًا", "needs attention"),
+     ("النموّ دون العتبة المشتقّة من جوار هذا الحقل نفسه",
+      "vigour below the threshold derived from this field's own neighbourhood")),
+    ("watch", ("للمراقبة", "watch"),
+     ("مقيسة، ومنخفضة مقارنةً ببقية حقول هذه المزرعة",
+      "measured, and low compared with the other fields on this farm")),
+    ("ok", ("سليمة", "ok"),
+     ("مقيسة، وغير منخفضة", "measured, and not low")),
+    ("unmeasured", ("لم تُقَس", "not measured"),
+     ("لا قراءة أقمار صالحة — وهذا ليس حقلًا سليمًا، بل حقلًا لم يُرَ",
+      "no usable satellite reading — this is NOT a healthy field, it is an "
+      "unseen one")),
 ]
+
+# Kept for English-only callers and for the colour-consistency test.
+LEGEND = [(en_label, colour, en_meaning)
+          for (_key, (_ar_label, en_label), (_ar_m, en_meaning)), colour
+          in zip(LEGEND_BI, [COLOUR_ATTENTION, COLOUR_WATCH, COLOUR_OK,
+                             COLOUR_UNMEASURED])]
+
+STATUS_LABEL = {k: lbl for k, lbl, _m in LEGEND_BI}
+
+VARIABLE_LABEL = {
+    "Vigour (NDVI)": ("النموّ (NDVI)", "Vigour (NDVI)"),
+    "Canopy moisture (NDMI)": ("رطوبة الغطاء (NDMI)", "Canopy moisture (NDMI)"),
+    "Greenness (EVI)": ("الاخضرار (EVI)", "Greenness (EVI)"),
+    "Surface temperature": ("حرارة السطح", "Surface temperature"),
+    "Rainfall, season": ("مطر الموسم", "Rainfall, season"),
+    "Rainfall, last 14 days": ("مطر آخر 14 يومًا", "Rainfall, last 14 days"),
+    "Reference ET0": ("البخر-نتح المرجعي ET0", "Reference ET0"),
+    "Crop water NEEDED (ETc)": ("الماء الذي احتاجه المحصول (ETc)",
+                                "Crop water NEEDED (ETc)"),
+    "Green-up day": ("يوم الإنبات", "Green-up day"),
+    "Season length": ("طول الموسم", "Season length"),
+    "Green-up / season length": ("الإنبات / طول الموسم",
+                                 "Green-up / season length"),
+    "Growing degree days": ("درجات النموّ الحرارية", "Growing degree days"),
+    "Heat-stress days": ("أيام الإجهاد الحراري", "Heat-stress days"),
+    "Longest dry spell": ("أطول فترة جفاف", "Longest dry spell"),
+    "Season vs this site's history": ("الموسم مقابل تاريخ الموقع",
+                                      "Season vs this site's history"),
+    "Soil texture": ("قوام التربة", "Soil texture"),
+}
+
+VERDICT_LABEL = {
+    "BELOW threshold": ("دون العتبة", "BELOW threshold"),
+    "above threshold": ("فوق العتبة", "above threshold"),
+    "not available": ("غير متاح", "not available"),
+    "no threshold": ("بلا عتبة", "no threshold"),
+}
+
+
+def label(table: dict, key: str, ar: bool) -> str:
+    """Look up a bilingual label, falling back to the key itself so an
+    untranslated string appears verbatim rather than vanishing."""
+    pair = table.get(key)
+    if not pair:
+        return key
+    return pair[0] if ar else pair[1]
+
+
+def localise_rows(rows: list, ar: bool) -> list:
+    """
+    Translate variable names, verdicts and the two stock cell values.
+
+    Values, sensors and scales are left alone: a sensor name and a unit are not
+    language, and translating "Sentinel-2" would make the provenance harder to
+    check rather than easier to read.
+    """
+    if not ar:
+        return rows
+    out = []
+    for r in rows:
+        c = dict(r)
+        c["variable"] = label(VARIABLE_LABEL, r["variable"], True)
+        for src, (ar_txt, _en) in VERDICT_LABEL.items():
+            if str(r.get("verdict", "")) == src:
+                c["verdict"] = ar_txt
+            if str(r.get("value", "")) == src:
+                c["value"] = ar_txt
+            if str(r.get("threshold", "")) == src:
+                c["threshold"] = ar_txt
+        if str(r.get("verdict", "")).startswith("NEEDED, not received"):
+            c["verdict"] = str(r["verdict"]).replace(
+                "NEEDED, not received", "احتياج، لا ما وصل")
+        out.append(c)
+    return out
 
 
 def _num(v, nd=3, dash="—"):
     return dash if v is None else (f"{v:.{nd}f}" if isinstance(v, float) else str(v))
 
 
-def field_status(record: dict, farm_vigours: Optional[list] = None) -> dict:
+def field_status(record: dict, farm_vigours: Optional[list] = None,
+                 ar: bool = False) -> dict:
     """
     Classify one field for the map.
 
@@ -65,13 +148,16 @@ def field_status(record: dict, farm_vigours: Optional[list] = None) -> dict:
     if vig.get("status") != "OK" or vig.get("value") is None:
         return {"status": "unmeasured", "colour": COLOUR_UNMEASURED,
                 "vigour": None,
-                "why": vig.get("reason", "no usable satellite reading")}
+                "why": ("لا قراءة أقمار صالحة لهذا الحقل" if ar
+                        else vig.get("reason", "no usable satellite reading"))}
 
     v = vig["value"]
     thr = vig.get("threshold")
     if thr is not None and v < thr:
         return {"status": "attention", "colour": COLOUR_ATTENTION, "vigour": v,
-                "why": (f"vigour {v:.3f} is below the {thr:.3f} threshold "
+                "why": (f"النموّ {v:.3f} دون العتبة {thr:.3f} المشتقّة من "
+                        "جوار هذا الحقل" if ar else
+                        f"vigour {v:.3f} is below the {thr:.3f} threshold "
                         "derived from this field's neighbourhood")}
 
     if farm_vigours and len(farm_vigours) >= 3:
@@ -79,15 +165,18 @@ def field_status(record: dict, farm_vigours: Optional[list] = None) -> dict:
         cut = ordered[max(0, len(ordered) // 3 - 1)]
         if v <= cut:
             return {"status": "watch", "colour": COLOUR_WATCH, "vigour": v,
-                    "why": (f"vigour {v:.3f} is in the lowest third of THIS "
+                    "why": (f"النموّ {v:.3f} ضمن أدنى ثلث حقول هذه المزرعة — "
+                            "مقارنة داخل المزرعة، لا حكمًا مطلقًا" if ar else
+                            f"vigour {v:.3f} is in the lowest third of THIS "
                             "farm's fields — a comparison within the farm, not "
                             "an absolute judgement")}
 
     return {"status": "ok", "colour": COLOUR_OK, "vigour": v,
-            "why": f"vigour {v:.3f}, not below the neighbourhood threshold"}
+            "why": (f"النموّ {v:.3f}، وليس دون عتبة الجوار" if ar else
+                    f"vigour {v:.3f}, not below the neighbourhood threshold")}
 
 
-def map_features(report: dict, field_fc: dict) -> list:
+def map_features(report: dict, field_fc: dict, ar: bool = False) -> list:
     """
     Join the engine's per-field results to the polygons for drawing.
 
@@ -113,15 +202,18 @@ def map_features(report: dict, field_fc: dict) -> list:
         if rec is None:
             st = {"status": "unmeasured", "colour": COLOUR_UNMEASURED,
                   "vigour": None,
-                  "why": "this field is not in the report - it was not analysed"}
+                  "why": ("هذا الحقل ليس في التقرير — لم يُحلّل" if ar
+                          else "this field is not in the report - it was not "
+                               "analysed")}
         else:
-            st = field_status(rec, vigours)
+            st = field_status(rec, vigours, ar)
 
         out.append({
             "name": name or "(unnamed)",
             "polygon": [[float(p[0]), float(p[1])] for p in geom["coordinates"][0]],
             "colour": st["colour"],
-            "status": st["status"],
+            "status": label(STATUS_LABEL, st["status"], ar),
+            "status_key": st["status"],
             "vigour_display": _num(st["vigour"]),
             "why": st["why"],
         })
@@ -332,7 +424,34 @@ STATUS_MARK = {"attention": "🔴", "watch": "🟠", "ok": "🟢",
                "unmeasured": "⚪"}
 
 
-def attention_list(report: dict) -> dict:
+DRIVER_PATTERNS = [
+    ("vigour below the neighbourhood threshold",
+     "النموّ دون عتبة الجوار"),
+    ("canopy moisture below the neighbourhood threshold",
+     "رطوبة الغطاء دون عتبة الجوار"),
+]
+
+
+def localise_driver(text: str, ar: bool) -> str:
+    """Translate an engine-generated driver sentence.
+
+    Anything unrecognised passes through in English rather than being dropped:
+    a driver that vanishes because nobody translated it takes the reason for a
+    field's rank with it, which is worse than a sentence in the wrong language.
+    """
+    if not ar:
+        return text
+    for en, arabic in DRIVER_PATTERNS:
+        if text == en:
+            return arabic
+    if text.endswith("degC warmer than its surroundings"):
+        return "أدفأ بـ" + text.split(" degC")[0] + "°م من محيطه"
+    if "mm of water needed beyond rainfall" in text:
+        return text.split(" mm")[0] + " مم ماءً احتاجها المحصول فوق المطر"
+    return text
+
+
+def attention_list(report: dict, ar: bool = False) -> dict:
     """
     The farm-level answer: which field first, and why.
 
@@ -351,12 +470,14 @@ def attention_list(report: dict) -> dict:
     ranked = []
     for entry in r.get("ranked", []):
         rec = by_name.get(entry.get("name"))
-        st = (field_status(rec, vigours) if rec else
+        st = (field_status(rec, vigours, ar) if rec else
               {"status": "unmeasured", "why": "no record"})
         e = dict(entry)
         e["status"] = st["status"]
+        e["status_label"] = label(STATUS_LABEL, st["status"], ar)
         e["mark"] = STATUS_MARK.get(st["status"], "⚪")
         e["why"] = st["why"]
+        e["drivers"] = [localise_driver(d, ar) for d in e.get("drivers", [])]
         ranked.append(e)
 
     return {"ranked": ranked,

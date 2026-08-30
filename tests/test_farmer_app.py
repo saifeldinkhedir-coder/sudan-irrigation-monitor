@@ -57,6 +57,13 @@ class TestStatusColours:
         entry = next(e for e in D.LEGEND if e[0] == "not measured")
         assert "NOT a healthy field" in entry[2]
 
+    def test_grey_means_the_same_thing_in_arabic(self):
+        """The caveat is the sentence a farmer most needs to understand, so it
+        is the one that must not be left in English."""
+        _k, _lbl, (ar, en) = next(e for e in D.LEGEND_BI if e[0] == "unmeasured")
+        assert "ليس حقلًا سليمًا" in ar
+        assert "NOT a healthy field" in en
+
     def test_a_field_with_no_threshold_is_not_forced_into_a_verdict(self):
         s = D.field_status(_rec("F", vigour=0.4, threshold=None))
         assert s["status"] in ("ok", "watch")
@@ -85,8 +92,8 @@ class TestMapFeatures:
                            _square(33.1, 14.5, "Field B")]}
         feats = D.map_features(report, fc)
         assert [f["name"] for f in feats] == ["Field A", "Field B"]
-        assert feats[0]["status"] == "attention"
-        assert feats[1]["status"] == "ok"
+        assert feats[0]["status_key"] == "attention"
+        assert feats[1]["status_key"] == "ok"
 
     def test_a_polygon_with_no_result_is_drawn_grey_not_dropped(self):
         """A field silently missing from the map reads as a field the farmer
@@ -97,7 +104,7 @@ class TestMapFeatures:
         feats = D.map_features(report, fc)
         assert len(feats) == 2
         z = next(f for f in feats if f["name"] == "Field Z")
-        assert z["status"] == "unmeasured"
+        assert z["status_key"] == "unmeasured"
         assert "not in the report" in z["why"]
 
     def test_non_polygon_geometry_is_skipped(self):
@@ -348,3 +355,132 @@ class TestPhenologyRows:
         row = next(r for r in rows if "Green-up" in r["variable"])
         assert row["value"] == "not available"
         assert "not have been cropped" in row["reason"]
+
+
+# --- the presentation layer ---------------------------------------------------
+
+import ui as U
+
+
+class TestPaletteConsistency:
+    def test_the_hex_and_rgba_palettes_describe_the_same_colours(self):
+        """
+        view.py holds RGBA because pydeck needs it; ui.py holds hex because CSS
+        does. If they drift, the map and the chips label the same field with
+        two different colours and the reader cannot tell which is the claim.
+        """
+        pairs = [("attention", D.COLOUR_ATTENTION), ("watch", D.COLOUR_WATCH),
+                 ("ok", D.COLOUR_OK), ("unmeasured", D.COLOUR_UNMEASURED)]
+        for key, rgba in pairs:
+            hexed = "#%02X%02X%02X" % tuple(rgba[:3])
+            assert U.STATUS_HEX[key].upper() == hexed, (
+                f"{key}: css {U.STATUS_HEX[key]} vs map {hexed}")
+
+    def test_every_status_has_a_colour(self):
+        for key in ("attention", "watch", "ok", "unmeasured"):
+            assert key in U.STATUS_HEX
+
+
+class TestBilingual:
+    def test_every_label_has_both_languages(self):
+        for key, pair in U.T.items():
+            assert len(pair) == 2, key
+            assert pair[0] and pair[1], key
+
+    def test_arabic_and_english_differ(self):
+        """A label that is identical in both is almost always an untranslated
+        one that slipped through."""
+        same = [k for k, (a, e) in U.T.items() if a == e]
+        assert not same, f"untranslated labels: {same}"
+
+    def test_t_returns_the_requested_language(self):
+        assert U.t("nutrition", ar=True) == "التغذية"
+        assert U.t("nutrition", ar=False) == "Nutrition"
+
+    def test_an_unknown_key_returns_itself_rather_than_raising(self):
+        assert U.t("no_such_label", ar=True) == "no_such_label"
+
+    def test_the_arabic_tagline_keeps_the_measurement_promise(self):
+        ar = U.T["tagline"][0]
+        assert "المستشعر" in ar
+        assert "المقياس" in ar
+
+    def test_the_no_verdict_warning_survives_translation(self):
+        """The distinction between 'not measured' and 'healthy' is the whole
+        point; it must not be lost in the Arabic."""
+        ar, en = U.T["no_verdict"]
+        assert "بلا حكم" in ar
+        assert "not the same as" in en
+
+
+class TestArabicContent:
+    """The chrome was Arabic while the content stayed English — half a
+    translation, which asks the reader to switch language mid-sentence for
+    exactly the sentences that carry the caveats."""
+
+    def test_the_status_reason_is_arabic_when_arabic(self):
+        rec = _rec("F", 0.20, 0.30)
+        assert "دون العتبة" in D.field_status(rec, ar=True)["why"]
+        assert "below the" in D.field_status(rec, ar=False)["why"]
+
+    def test_the_map_status_label_is_translated_but_the_key_is_not(self):
+        report = {"fields": [_rec("A", 0.2, 0.3)]}
+        fc = {"features": [_square(33.0, 14.4, "A")]}
+        ar = D.map_features(report, fc, ar=True)[0]
+        assert ar["status"] == "تحتاج انتباهًا"
+        assert ar["status_key"] == "attention", "the key must stay machine-readable"
+
+    def test_variable_names_and_verdicts_translate(self):
+        rows = D.localise_rows(
+            [{"variable": "Surface temperature", "value": "40 °C",
+              "threshold": "—", "verdict": "BELOW threshold",
+              "sensor": "Landsat", "scale": "100 m"}], ar=True)
+        assert rows[0]["variable"] == "حرارة السطح"
+        assert rows[0]["verdict"] == "دون العتبة"
+
+    def test_sensors_and_units_are_left_alone(self):
+        """A sensor name is not language; translating it would make the
+        provenance harder to check, not easier to read."""
+        rows = D.localise_rows(
+            [{"variable": "Surface temperature", "value": "40 °C",
+              "threshold": "—", "verdict": "—", "sensor": "Landsat 8/9",
+              "scale": "100 m"}], ar=True)
+        assert rows[0]["sensor"] == "Landsat 8/9"
+        assert rows[0]["scale"] == "100 m"
+
+    def test_english_rows_pass_through_untouched(self):
+        rows = [{"variable": "Soil texture", "value": "clay", "threshold": "—",
+                 "verdict": "—", "sensor": "x", "scale": "y"}]
+        assert D.localise_rows(rows, ar=False) is rows
+
+    def test_the_needed_not_received_warning_survives_translation(self):
+        rows = D.localise_rows(
+            [{"variable": "Crop water NEEDED (ETc)", "value": "305 mm",
+              "threshold": "—", "verdict": "NEEDED, not received",
+              "sensor": "x", "scale": "y"}], ar=True)
+        assert rows[0]["verdict"] == "احتياج، لا ما وصل"
+
+    def test_an_untranslated_label_appears_verbatim_rather_than_vanishing(self):
+        assert D.label(D.VARIABLE_LABEL, "Some New Variable", True) == \
+            "Some New Variable"
+
+
+class TestDriverTranslation:
+    def test_the_thermal_driver_translates(self):
+        assert D.localise_driver("3.41 degC warmer than its surroundings",
+                                 ar=True) == "أدفأ بـ3.41°م من محيطه"
+
+    def test_the_water_driver_translates(self):
+        out = D.localise_driver("310 mm of water needed beyond rainfall", True)
+        assert out.startswith("310")
+        assert "احتاجها المحصول" in out
+
+    def test_an_unknown_driver_passes_through_rather_than_vanishing(self):
+        """A driver that disappears because nobody translated it takes the
+        reason for a field's rank with it - worse than the wrong language."""
+        odd = "some future driver nobody translated"
+        assert D.localise_driver(odd, ar=True) == odd
+
+    def test_english_is_untouched(self):
+        s = "3.41 degC warmer than its surroundings"
+        assert D.localise_driver(s, ar=False) == s

@@ -90,6 +90,10 @@ MIN_THERMAL_SCENES = 1
 # Phenology. All ARBITRARY: the half-amplitude green-up convention is
 # common and carries no physical claim, and the amplitude floor is the
 # point below which a series has no season in it to find.
+# Below this many 100 m thermal pixels across, a field and its
+# neighbourhood sample much the same ground. ARBITRARY.
+MIN_THERMAL_PIXELS_ACROSS = 2.0
+
 MIN_SCENES_FOR_PHENOLOGY = 8
 PHENOLOGY_GREENUP_FRACTION = 0.5
 PHENOLOGY_MIN_AMPLITUDE = 0.05
@@ -305,7 +309,8 @@ def crop_health(field_geom, reference_geom, start: str, end: str) -> dict:
     return out
 
 
-def thermal_stress(field_geom, reference_geom, start: str, end: str) -> dict:
+def thermal_stress(field_geom, reference_geom, start: str, end: str,
+                   field_feature_geometry: Optional[dict] = None) -> dict:
     """
     Land surface temperature - a DIRECT physical stress measure, not a proxy.
 
@@ -334,9 +339,30 @@ def thermal_stress(field_geom, reference_geom, start: str, end: str) -> dict:
         return {"status": "NOT AVAILABLE", "reason": "no valid thermal pixels",
                 "sensor": "Landsat 8/9 ST_B10", "n_scenes": n}
 
+    # How many thermal pixels does this field actually span? Below about two,
+    # every pixel mixes the crop with its surroundings, so the field and its
+    # neighbourhood are sampling much the same ground and the difference
+    # between them is forced toward zero by geometry rather than measured. That
+    # is the same class of error as a stress threshold a field sets for itself,
+    # and it is reported rather than left for the reader to work out.
+    import math as _m
+    side_m = _m.sqrt(dl.geojson_area_m2(field_feature_geometry) or 0.0)         if field_feature_geometry else None
+    pixels = (side_m / SCALE_COARSE_M) if side_m else None
+
     out = {"status": "OK", "value": round(v, 2), "unit": "degC",
            "sensor": "Landsat 8/9 ST_B10", "n_scenes": n,
            "scale_m": SCALE_COARSE_M,
+           "pixels_across": round(pixels, 1) if pixels else None,
+           "resolvable": (None if pixels is None
+                          else pixels >= MIN_THERMAL_PIXELS_ACROSS),
+           "resolvability_note": (
+               None if pixels is None else
+               (f"about {pixels:.1f} thermal pixels across - the field and its "
+                "surroundings are largely the same pixels, so any difference "
+                "between them is suppressed by resolution rather than measured"
+                if pixels < MIN_THERMAL_PIXELS_ACROSS else
+                f"about {pixels:.1f} thermal pixels across - wide enough for "
+                "the field and its surroundings to be distinguishable")),
            "interpretation": ("Land surface temperature. A transpiring crop is "
                               "cooler than a stressed one, so a field warm "
                               "relative to its neighbours is a direct "
@@ -742,7 +768,8 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
             "properties": f.get("properties", {}),
             "reference_provenance": ref_prov,
             "crop_health": health,
-            "thermal_stress": thermal_stress(geom, ref, start, end),
+            "thermal_stress": thermal_stress(geom, ref, start, end,
+                                             f.get("geometry")),
             "rainfall": rainfall_context(geom, start, end),
             "soil": soil_texture(geom),
         }

@@ -1,0 +1,15 @@
+# Theme for both apps. Set here rather than in CSS so Streamlit's own widgets -
+# selectboxes, tabs, the sidebar - inherit it instead of fighting it.
+[theme]
+base = "light"
+primaryColor = "#1F7A4D"            # the crop green used for "ok" on the map
+backgroundColor = "#FBFAF7"         # warm paper, not clinical white
+secondaryBackgroundColor = "#F2EFE8"
+textColor = "#1C2321"
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
