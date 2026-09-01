@@ -30,8 +30,17 @@ import streamlit as st
 import ui
 
 
-DEMO_REPORT = os.path.join("docs", "farm_report_demo.json")
-DEMO_FIELDS = os.path.join("docs", "gezira_fields_demo.geojson")
+# Resolved against the REPOSITORY, not the working directory.
+#
+# These were "docs/farm_report_demo.json", which is only correct when Streamlit
+# happens to have been started from the project root. Start it from anywhere
+# else and the demonstration button - the one option on the first screen that
+# is supposed to need nothing from the reader - silently offered a file that
+# was not there. A path that depends on where somebody's shell happened to be
+# is not a default; it is a coincidence.
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEMO_REPORT = os.path.join(_ROOT, "docs", "farm_report_demo.json")
+DEMO_FIELDS = os.path.join(_ROOT, "docs", "gezira_fields_demo.geojson")
 
 
 def needed(report_path: str, fields_path: str) -> bool:

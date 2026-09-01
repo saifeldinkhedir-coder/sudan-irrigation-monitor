@@ -1438,3 +1438,35 @@ class TestTheHeaderIsANameAndOneLine:
         assert captured["h"].count("<h1>") == 1
         assert captured["h"].count("<p>") == 1
         assert "<span" not in captured["h"]
+
+
+class TestTheDemoWorksFromAnyWorkingDirectory:
+    """
+    The demonstration paths were "docs/farm_report_demo.json" - correct only
+    when Streamlit happened to be started from the project root. From anywhere
+    else, the one option on the first screen that is supposed to need nothing
+    from the reader offered a file that was not there.
+
+    A path that depends on where somebody's shell happened to be is not a
+    default; it is a coincidence.
+    """
+    def test_the_demo_files_are_found_from_the_home_directory(self, tmp_path,
+                                                              monkeypatch):
+        import onboarding as ONB
+        monkeypatch.chdir(tmp_path)
+        assert os.path.exists(ONB.DEMO_REPORT)
+        assert os.path.exists(ONB.DEMO_FIELDS)
+
+    def test_the_paths_are_absolute(self):
+        import onboarding as ONB
+        assert os.path.isabs(ONB.DEMO_REPORT)
+        assert os.path.isabs(ONB.DEMO_FIELDS)
+
+    def test_the_first_screen_still_appears_when_there_is_nothing(self,
+                                                                  tmp_path,
+                                                                  monkeypatch):
+        """Anchoring the demo must not accidentally make `needed()` think the
+        reader already has a farm."""
+        import onboarding as ONB
+        monkeypatch.chdir(tmp_path)
+        assert ONB.needed("farm_report.json", "") is True
