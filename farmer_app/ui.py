@@ -463,6 +463,13 @@ T = {
         "Open \"Run the analysis\" in the sidebar and run the engine on this "
         "file - no terminal needed."),
 
+    # ---------------------------------------------------------- navigation
+    # Two views are the product; the rest are tools. The distinction is the
+    # whole point of the labels below: a sidebar in which the farm map is the
+    # first of seven equal items is an administration console with a map in it.
+    "tools": ("أدوات", "Tools"),
+    "back_to_fields": ("← عودة إلى الحقول", "← Back to the fields"),
+
     # ------------------------------------------------------- the deployment
     "farm_name": ("اسم المزرعة", "Farm name"),
     "not_your_farm": (

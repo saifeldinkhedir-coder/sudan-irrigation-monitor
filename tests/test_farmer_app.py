@@ -1251,3 +1251,95 @@ class TestEveryLabelTheAppAsksForExists:
     def test_the_scan_would_catch_a_missing_one(self):
         """A test that cannot fail is not a test."""
         assert U.t("definitely_not_a_label", ar=True) == "definitely_not_a_label"
+
+
+class TestTablesSurviveArrow:
+    """
+    st.table hands its data to pandas, which hands it to Arrow, and Arrow types
+    a column from its FIRST value. A metadata column holding
+    "2022-07-01 → 2023-03-31" and then the integer 4 is typed as bytes, given
+    an int, and the whole page dies with
+
+        ArrowTypeError: Expected bytes, got a 'int' object
+
+    A mixed column is the normal case for a metadata table, not an edge case.
+    """
+    def test_a_mixed_column_is_all_text_by_the_time_arrow_sees_it(self):
+        import about as AB
+        rows = AB._rows("k", "v", {"season": "2022-07-01 → 2023-03-31",
+                                   "fields": 4, "gee": None})
+        assert all(isinstance(r["v"], str) for r in rows)
+        assert rows[1]["v"] == "4"
+
+    def test_a_missing_value_becomes_a_dash_not_the_string_none(self):
+        import about as AB
+        assert AB._rows("k", "v", {"x": None})[0]["v"] == "—"
+
+    def test_it_would_actually_convert(self):
+        """The assertion that matters: pyarrow itself accepts the result. A
+        test that only checks types would pass on a subtly different bug."""
+        import about as AB
+        rows = AB._rows("k", "v", {"season": "2022 → 2023", "fields": 4})
+        try:
+            import pandas as pd
+            import pyarrow as pa
+        except ImportError:
+            return
+        pa.Table.from_pandas(pd.DataFrame(rows), preserve_index=False)
+
+    def test_the_sortable_variables_table_is_stringified_too(self):
+        """The same trap, in the one place a reader can turn a table on."""
+        src = _source("app.py")
+        block = src.split("if interactive:")[1].split("else:")[0]
+        for col in ("var", "value", "compared", "reading", "sensor",
+                    "measured_at"):
+            assert f'ui.t("{col}", ar): str(' in block, col
+
+
+class TestTheProductIsTheFrontDoor:
+    """
+    Eleven commissioned features each honestly needed somewhere to live, and
+    the sidebar became a seven-item menu in which the farm map was item one.
+    Nothing was wrong with any single addition; the sum was wrong, and a person
+    opening the app met an administration console and had to find the farm
+    inside it.
+
+    The capability stays. The shape goes back.
+    """
+    def test_only_the_product_is_top_level(self):
+        import app as APP
+        assert [k for k, _l in APP.MAIN_PAGES] == ["fields", "changes"]
+
+    def test_everything_operational_is_a_tool(self):
+        import app as APP
+        tools = {k for k, _l in APP.TOOL_PAGES}
+        assert tools == {"run", "record", "units", "backup", "about"}
+
+    def test_no_page_is_in_both_places(self):
+        import app as APP
+        assert not ({k for k, _l in APP.MAIN_PAGES}
+                    & {k for k, _l in APP.TOOL_PAGES})
+
+    def test_every_page_is_reachable(self):
+        """A tool nobody can reach is worse than one that was never built: the
+        code is still there to maintain."""
+        import app as APP
+        src = _source("app.py")
+        for key, _label in APP.MAIN_PAGES + APP.TOOL_PAGES:
+            assert f'page == "{key}"' in src or key == "fields", key
+
+    def test_the_default_is_the_farm_not_a_tool(self):
+        import app as APP
+        assert APP.MAIN_PAGES[0][0] == "fields"
+
+    def test_there_is_a_way_back_from_a_tool(self):
+        """Without it the only route to the product is a radio the reader has
+        to notice has stopped matching the screen."""
+        assert '"back_to_fields"' in _source("app.py")
+        assert "back_to_fields" in U.T
+
+    def test_every_navigation_label_exists(self):
+        import app as APP
+        for _k, label in APP.MAIN_PAGES + APP.TOOL_PAGES:
+            assert label in U.T, label
+        assert "tools" in U.T

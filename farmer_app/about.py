@@ -194,6 +194,24 @@ SECTIONS = {
 }
 
 
+def _rows(key_label: str, value_label: str, mapping: dict) -> list:
+    """
+    Two-column table rows with EVERY value as text.
+
+    st.table hands the data to pandas, which hands it to Arrow, and Arrow types
+    a column from its first value. A column holding "2022-07-01 → 2023-03-31"
+    and then the integer 4 is typed as bytes and then given an int, and the
+    whole page dies with `Expected bytes, got a 'int' object`.
+
+    The values here are labels, not quantities - nothing sorts or sums them -
+    so they are strings by the time Arrow sees them. A mixed column is the
+    normal case for a metadata table, not an edge case, so this is done once
+    here rather than remembered at each call site.
+    """
+    return [{key_label: str(k), value_label: "—" if v is None else str(v)}
+            for k, v in mapping.items()]
+
+
 def render(report: dict, ar: bool = False) -> None:
     """The whole method, in one place, in the reader's language."""
     ui.section(ui.t("about_title", ar), ui.t("about_sub", ar), ar)
@@ -211,8 +229,7 @@ def render(report: dict, ar: bool = False) -> None:
     # worse than useless.
     sensors = report.get("sensors") or {}
     if isinstance(sensors, dict) and sensors:
-        st.table([{ui.t("sensor", ar): k, ui.t("value", ar): v}
-                  for k, v in sensors.items()])
+        st.table(_rows(ui.t("sensor", ar), ui.t("value", ar), sensors))
     elif sensors:
         st.markdown("`" + "`  ·  `".join(str(s) for s in sensors) + "`")
     meta = {
@@ -223,8 +240,7 @@ def render(report: dict, ar: bool = False) -> None:
         "Earth Engine": report.get("gee_project", "—"),
         ui.t("generated", ar): report.get("generated_utc", "—"),
     }
-    st.table([{ui.t("var", ar): k, ui.t("value", ar): v}
-              for k, v in meta.items()])
+    st.table(_rows(ui.t("var", ar), ui.t("value", ar), meta))
 
     # A demonstration report is engine output over invented boundaries. The
     # paragraph came off the working screen; it does not come off the record.

@@ -157,31 +157,27 @@ def main():
         f'{report.get("n_fields", 0)} {ui.t("fields", ar)}',
     ], demo=bool(report.get("note")))
 
-    page = st.sidebar.radio(ui.t("page", ar),
-                            [ui.t("page_fields", ar), ui.t("page_changes", ar),
-                             ui.t("page_units", ar), ui.t("page_run", ar),
-                             ui.t("page_record", ar), ui.t("page_backup", ar),
-                             ui.t("page_about", ar)])
+    page = _navigation(ar)
 
     field_fc = (_load(fields_path)
                 if fields_path and os.path.exists(fields_path) else None)
 
-    if page == ui.t("page_record", ar):
+    if page == "record":
         R.render(report)
         return
-    if page == ui.t("page_about", ar):
+    if page == "about":
         A.render(report, ar)
         return
-    if page == ui.t("page_changes", ar):
+    if page == "changes":
         CG.render(report, ar, farm=farm)
         return
-    if page == ui.t("page_units", ar):
+    if page == "units":
         _render_units(report, field_fc, ar)
         return
-    if page == ui.t("page_backup", ar):
+    if page == "backup":
         _render_backup(ar)
         return
-    if page == ui.t("page_run", ar):
+    if page == "run":
         season_year = int(str(season.get("start", "2022"))[:4] or 2022)
         produced = RUN.panel(fields_path if field_fc else None,
                              len((field_fc or {}).get("features", [])),
@@ -436,9 +432,9 @@ def _handle_drawings(state, ar):
         [{ui.t("col_name", ar): f["properties"]["name"],
           ui.t("col_crop", ar): CROPS.label(
               f["properties"].get("crop") or "default", ar),
-          ui.t("col_sown", ar): f["properties"].get("sowing_date", ""),
-          ui.t("col_tenancy", ar): f["properties"].get("tenancy", ""),
-          ui.t("col_area", ar): f["properties"]["area_ha"]}
+          ui.t("col_sown", ar): str(f["properties"].get("sowing_date", "")),
+          ui.t("col_tenancy", ar): str(f["properties"].get("tenancy", "")),
+          ui.t("col_area", ar): float(f["properties"].get("area_ha") or 0.0)}
          for f in drawn["features"]],
         width="stretch", hide_index=True, key="field_editor",
         column_config={
@@ -495,12 +491,17 @@ def _render_field(rec, ar):
             mime="text/csv", key=f"csv_{rec.get('name')}")
 
         if interactive:
+            # Every cell as text. Arrow types a column from its first value,
+            # so one column holding "0.2188" and then the integer 80 dies with
+            # `Expected bytes, got a 'int' object`. These are readings with
+            # their units, not quantities to sort arithmetically.
             st.dataframe(
-                [{ui.t("var", ar): r["variable"], ui.t("value", ar): r["value"],
-                  ui.t("compared", ar): r["threshold"],
-                  ui.t("reading", ar): r["verdict"],
-                  ui.t("sensor", ar): r["sensor"],
-                  ui.t("measured_at", ar): r["scale"]} for r in rows],
+                [{ui.t("var", ar): str(r["variable"]),
+                  ui.t("value", ar): str(r["value"]),
+                  ui.t("compared", ar): str(r["threshold"]),
+                  ui.t("reading", ar): str(r["verdict"]),
+                  ui.t("sensor", ar): str(r["sensor"]),
+                  ui.t("measured_at", ar): str(r["scale"])} for r in rows],
                 width="stretch", hide_index=True)
         else:
             # The reason a row is unavailable rides on the row itself, as a
@@ -550,6 +551,55 @@ def _render_field(rec, ar):
             with st.expander(ui.t("not_said", ar)):
                 for w in adv["withheld"]:
                     st.caption(f"**{w['key']}** — {w['reason']}")
+
+
+# The product is ONE screen: the map, the list, and the field you picked. That
+# is what a farm-monitoring tool is, and it is what this app was for.
+#
+# Then eleven commissioned features arrived, and each one honestly needed
+# somewhere to live, and the sidebar became a seven-item menu in which the
+# product was the first item. Nothing was wrong with any single addition; the
+# sum was wrong. A person opening the app met an administration console and had
+# to find the farm inside it.
+#
+# So the capability stays and the SHAPE goes back. Two views are the product -
+# the fields, and what changed since last time. Everything else is a tool: real,
+# reachable in one click, and not competing with the thing the app is for.
+MAIN_PAGES = [("fields", "page_fields"), ("changes", "page_changes")]
+TOOL_PAGES = [("run", "page_run"), ("record", "page_record"),
+              ("units", "page_units"), ("backup", "page_backup"),
+              ("about", "page_about")]
+
+
+def _navigation(ar) -> str:
+    """The sidebar. Returns the page key; defaults to the product."""
+    def _picked():
+        st.session_state["_page"] = st.session_state["_main"]
+
+    keys = [k for k, _l in MAIN_PAGES]
+    current = st.session_state.get("_page", "fields")
+    st.sidebar.radio(
+        ui.t("page", ar), keys,
+        index=keys.index(current) if current in keys else 0,
+        format_func=lambda k: ui.t(dict(MAIN_PAGES)[k], ar),
+        key="_main", on_change=_picked)
+
+    with st.sidebar.expander(ui.t("tools", ar)):
+        for key, label in TOOL_PAGES:
+            if st.button(ui.t(label, ar), key=f"nav_{key}", width="stretch"):
+                st.session_state["_page"] = key
+                current = key
+
+    page = st.session_state.get("_page", "fields")
+    if page in dict(TOOL_PAGES):
+        # A tool is somewhere you went, so there is a way back. Without it the
+        # only route to the product is a radio the reader has to notice has
+        # stopped matching the screen.
+        if st.sidebar.button(ui.t("back_to_fields", ar), width="stretch",
+                             type="primary"):
+            st.session_state["_page"] = "fields"
+            st.rerun()
+    return page
 
 
 def _render_units(report, field_fc, ar):
