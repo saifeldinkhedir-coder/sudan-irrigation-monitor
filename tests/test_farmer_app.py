@@ -1343,3 +1343,81 @@ class TestTheProductIsTheFrontDoor:
         for _k, label in APP.MAIN_PAGES + APP.TOOL_PAGES:
             assert label in U.T, label
         assert "tools" in U.T
+
+
+class TestTheScreenCarriesOnlyWhatIsUsed:
+    """
+    Six things had accumulated on screen that said nothing a reader needed:
+    a row of chips restating the figures below them, an empty-state line for a
+    figure that did not exist yet, a deployment warning aimed at somebody else,
+    two file paths at the top of the sidebar, and a navigation item whose only
+    possible content was its own empty state.
+
+    None of them was wrong. Each was a small honest addition. The sum was a
+    screen a person had to look past to reach their farm.
+    """
+    def test_the_header_does_not_restate_the_figures_below_it(self):
+        """Season, crop and field count were chips above a row of statistics
+        that says the same things, above field rows that say them again."""
+        src = _source("app.py")
+        assert "ui.topbar(ar, demo=" in src
+        assert 'ui.t("season", ar)} {str(season' not in src
+
+    def test_the_demonstration_pill_is_the_one_thing_that_stayed(self):
+        """Real imagery over invented boundaries is the most misleading
+        combination this tool can produce. One pill is not a row of chips."""
+        assert "demo=bool(report.get(\"note\"))" in _source("app.py")
+
+    def test_the_accuracy_figure_shows_nothing_when_there_is_nothing(self):
+        """An empty state on the main screen is a line that is always there and
+        never useful."""
+        src = _source("app.py")
+        block = src.split("def _render_accuracy")[1].split("def _render_export")[0]
+        assert 'ui.t("accuracy_none"' not in block
+        assert 'ui.t("accuracy", ar)' in block
+
+    def test_the_deployment_warning_is_not_in_the_farmers_sidebar(self):
+        """It is addressed to whoever deploys this, and they read it once."""
+        src = _source("app.py")
+        assert "AUTH.gate(ar=ar, quiet=True)" in src
+        assert "OPEN_WARNING" not in src
+        # It did not vanish - it goes to the console and onto the About page.
+        assert "OPEN_WARNING" in _source("about.py")
+
+    def test_the_quiet_gate_still_reports_an_open_deployment(self):
+        import io
+        import contextlib
+        import auth as A
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            assert A.gate(path="no-such-users-file.json", quiet=True) is None
+        assert "SECURITY" in buf.getvalue()
+        assert "OPEN" in buf.getvalue()
+
+    def test_the_file_paths_left_the_sidebar_floor_for_the_tools_group(self):
+        """A sidebar whose first controls are two file paths is a program's
+        sidebar, not a product's."""
+        src = _source("app.py")
+        main = src.split("def main(")[1].split("def _navigation")[0]
+        assert "Farm report JSON" not in main
+        assert "Field polygons GeoJSON" not in main
+        assert "Farm report JSON" in src.split("def _sources")[1]
+
+    def test_what_changed_is_offered_only_when_it_can_say_something(self):
+        """A navigation item whose only possible content is its own empty state
+        is not navigation; it is a promise the sidebar cannot keep."""
+        src = _source("app.py")
+        nav = src.split("def _navigation")[1].split("def _sources")[0]
+        assert "runs(farm)) >= 2" in nav
+        assert "if can_compare:" in nav
+
+    def test_the_change_page_no_longer_asks_for_a_file_path(self):
+        src = _source("changes.py")
+        assert "text_input" not in src
+        assert "len(history) < 2" in src
+
+    def test_the_compact_toggle_moved_in_with_the_other_switches(self):
+        src = _source("app.py")
+        main = src.split("def main(")[1].split("def _navigation")[0]
+        assert "st.sidebar.toggle" not in main
+        assert 'st.session_state.get("_compact")' in main

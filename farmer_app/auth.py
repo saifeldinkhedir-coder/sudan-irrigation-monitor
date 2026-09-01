@@ -175,7 +175,8 @@ def may_see(user: Optional[dict], farm: str) -> bool:
 # THE GATE
 # ==============================================================================
 
-def gate(path: str = USERS_FILE, ar: bool = False) -> Optional[dict]:
+def gate(path: str = USERS_FILE, ar: bool = False,
+         quiet: bool = False) -> Optional[dict]:
     """
     Show the login and stop the script until it passes.
 
@@ -185,7 +186,14 @@ def gate(path: str = USERS_FILE, ar: bool = False) -> Optional[dict]:
     """
     users = load_users(path)
     if users is None:
-        st.sidebar.warning(OPEN_WARNING_AR if ar else OPEN_WARNING)
+        # `quiet` sends the warning to the console instead of the sidebar.
+        # It is addressed to whoever DEPLOYS this, who reads it once at
+        # startup; a farmer meeting it every session is being shouted at about
+        # a decision they did not make. The About page carries it too.
+        if quiet:
+            print("SECURITY: " + OPEN_WARNING)
+        else:
+            st.sidebar.warning(OPEN_WARNING_AR if ar else OPEN_WARNING)
         return None
 
     if st.session_state.get("_user"):

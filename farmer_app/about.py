@@ -252,6 +252,14 @@ def render(report: dict, ar: bool = False) -> None:
     # The list of things the tool does NOT claim is the last list that should
     # reach a farmer in a language they may not read. Falls back to English
     # only when the report predates the Arabic list - visibly, not silently.
+    # The deployment warning lives here, not in the sidebar of every screen.
+    # It is addressed to whoever deploys this, and this is the page they read.
+    import auth as _auth
+    if _auth.load_users() is None:
+        st.markdown("#### " + ("الأمان" if ar else "Security"))
+        ui.note(_auth.OPEN_WARNING_AR if ar else _auth.OPEN_WARNING, "warn", ar)
+        ui.note(_auth.NOT_ENOUGH_AR if ar else _auth.NOT_ENOUGH, "", ar)
+
     limits = ((report.get("limitations_ar") if ar else None)
               or report.get("limitations") or [])
     if limits:

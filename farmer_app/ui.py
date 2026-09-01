@@ -468,6 +468,7 @@ T = {
     # whole point of the labels below: a sidebar in which the farm map is the
     # first of seven equal items is an administration console with a map in it.
     "tools": ("أدوات", "Tools"),
+    "sources": ("مصادر البيانات", "Where the data comes from"),
     "back_to_fields": ("← عودة إلى الحقول", "← Back to the fields"),
 
     # ------------------------------------------------------- the deployment

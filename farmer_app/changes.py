@@ -19,7 +19,6 @@ src/change.py.
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 
@@ -50,46 +49,37 @@ def render(current: dict, ar: bool = False, farm: str = "",
     history = store.runs(farm) if farm else []
     previous = None
 
-    if len(history) >= 2:
-        # The default is the run before the latest. A reader who wants a
-        # different one can pick it; a reader who picks nothing gets the
-        # honest comparison rather than none.
-        labels = {r["id"]: f'{r["id"]}  ·  {r.get("n_fields", "?")} '
-                           f'{ui.t("fields", ar)}' for r in history[:-1]}
-        chosen = st.selectbox(ui.t("previous_report", ar),
-                              list(labels)[::-1],
-                              format_func=lambda k: labels[k])
-        previous = store.load(farm, chosen)
-        pair_a = next(r for r in history if r["id"] == chosen)
-        check = store.comparable(pair_a, history[-1])
-        if not check["ok"]:
-            ui.note(check["reason_ar"] if ar else check["reason"], "stop", ar)
-            return
-        if check.get("boundaries_changed"):
-            # Not a reason to refuse - fields do get redrawn - but a "change"
-            # in a redrawn field is partly the redrawing.
-            ui.note(("تغيّر ملف الحدود بين التشغيلين، فجزء من أي تغيّر هنا هو "
-                     "إعادة الرسم نفسها." if ar else
-                     "The boundary file changed between these runs, so part of "
-                     "any change here is the redrawing itself."), "warn", ar)
-    else:
-        # No history yet: fall back to a path, and say why the page is asking.
-        ui.note(("لا سجلّ تشغيلات لهذه المزرعة بعد. شغّل المحرّك من صفحة "
-                 "«تشغيل التحليل» مرّتين وستصير المقارنة تلقائية — أو أشر إلى "
-                 "تقرير أقدم يدويًّا." if ar else
-                 "No run history for this farm yet. Run the engine twice from "
-                 "\"Run the analysis\" and the comparison becomes automatic - "
-                 "or point at an older report by hand."), "", ar)
-        manual = st.text_input(ui.t("previous_report", ar), "",
-                               placeholder="farm_report_2022-10-01.json")
-        if not manual:
-            return
-        if not os.path.exists(manual):
-            ui.note(ui.t("no_report", ar) + f" <code>{manual}</code>",
-                    "stop", ar)
-            return
-        with open(manual, encoding="utf-8") as fh:
-            previous = json.load(fh)
+    # With fewer than two runs this page has nothing to say, and it used to say
+    # that at length: a paragraph explaining there was no history, and a box to
+    # type a file path into. Both are gone. The page is not offered at all
+    # until there is something to compare - see app._navigation - so reaching
+    # it in that state is a bug, and it says so in one line rather than
+    # dressing an empty screen up as a feature.
+    if len(history) < 2:
+        ui.note(("لا شيء للمقارنة بعد." if ar
+                 else "Nothing to compare yet."), "", ar)
+        return
+
+    # The default is the run before the latest. A reader who wants a different
+    # one picks it; a reader who picks nothing gets the honest comparison
+    # rather than none.
+    labels = {r["id"]: f'{r["id"]}  ·  {r.get("n_fields", "?")} '
+                       f'{ui.t("fields", ar)}' for r in history[:-1]}
+    chosen = st.selectbox(ui.t("previous_report", ar), list(labels)[::-1],
+                          format_func=lambda k: labels[k])
+    previous = store.load(farm, chosen)
+    check = store.comparable(next(r for r in history if r["id"] == chosen),
+                             history[-1])
+    if not check["ok"]:
+        ui.note(check["reason_ar"] if ar else check["reason"], "stop", ar)
+        return
+    if check.get("boundaries_changed"):
+        # Not a reason to refuse - fields do get redrawn - but a "change" in a
+        # redrawn field is partly the redrawing.
+        ui.note(("تغيّر ملف الحدود بين التشغيلين، فجزء من أي تغيّر هنا هو "
+                 "إعادة الرسم نفسها." if ar else
+                 "The boundary file changed between these runs, so part of "
+                 "any change here is the redrawing itself."), "warn", ar)
 
     cmp = CH.compare(previous, current)
     ui.note(CH.headline(cmp, ar), "", ar)
