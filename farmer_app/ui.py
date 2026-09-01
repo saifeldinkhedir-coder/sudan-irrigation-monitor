@@ -355,6 +355,9 @@ T = {
     "generated": ("وقت التوليد", "Generated"),
     "demo_heading": ("بيانات العرض التوضيحي", "Demonstration data"),
     "demo_chip": ("عرض توضيحي", "DEMO"),
+    "demo_line": (
+        "بيانات عرض توضيحي فوق حدود مخترعة، لا تخصّ مزرعة أحد.",
+        "demonstration data over invented boundaries; it belongs to no farm."),
     "method_link": ("الطريقة في صفحة «عن البيانات».",
                     "The method is on the \"About the data\" page."),
 
@@ -469,6 +472,16 @@ T = {
     # first of seven equal items is an administration console with a map in it.
     "tools": ("أدوات", "Tools"),
     "sources": ("مصادر البيانات", "Where the data comes from"),
+    "run_in_console": (
+        "تشغيل المحرّك عملُ مشغِّل، ومكانه تطبيق المشغِّل:",
+        "Running the engine is an operator job, and it lives in the operator "
+        "application:"),
+    "console_title": ("مشغِّل مراقب المزرعة", "Farm Monitor console"),
+    "console_sub": (
+        "أدوات المشغِّل: التشغيل، والسجلّات، والتجميع، والنسخ الاحتياطي، "
+        "والمنهجية. أمّا شاشة المزرعة فهي التطبيق الآخر.",
+        "Operator tools: runs, records, roll-up, backup and method. The farm "
+        "screen is the other application."),
     "back_to_fields": ("← عودة إلى الحقول", "← Back to the fields"),
 
     # ------------------------------------------------------- the deployment
@@ -569,22 +582,28 @@ def _cls(ar: bool, extra: str = "") -> str:
     return f'class="fm {extra}{" rtl" if ar else ""}"'
 
 
-def topbar(ar: bool, tags=(), demo: bool = False) -> None:
-    """Identify the tool, state what it is for in one line, and stop.
-
-    `tags` are short facts about the loaded report - season, crop, field count.
-    `demo` adds the one label that must survive: engine output over invented
-    boundaries has to say so somewhere a reader will see it, and a four-word
-    chip does that without a paragraph.
+def topbar(ar: bool, demo: bool = False) -> None:
     """
-    chips = "".join(f'<span class="tag">{x}</span>' for x in tags)
+    The name and one line saying what the tool is for. Nothing else.
+
+    There used to be a row of chips here - season, crop, field count, and a
+    demonstration pill. All of it is gone, including the pill.
+
+    The demonstration label is an obligation, not decoration: engine output
+    over invented boundaries is the most misleading thing this tool can
+    produce, and it has to say so where a reader will see it. But an
+    obligation does not require its own element. It is a clause on the line
+    that was already there, so the header is one heading and one line whether
+    the data is real or not.
+    """
+    line = t("tagline", ar)
     if demo:
-        chips += f'<span class="tag demo">{t("demo_chip", ar)}</span>'
+        line += " — " + t("demo_line", ar)
     d = ' dir="rtl"' if ar else ""
     st.markdown(
         f'<div class="topbar fm{" rtl" if ar else ""}"{d}>'
-        f'<h1>{t("title", ar)}</h1>{chips}'
-        f'<p>{t("tagline", ar)}</p></div>',
+        f'<h1>{t("title", ar)}</h1>'
+        f'<p>{line}</p></div>',
         unsafe_allow_html=True)
 
 

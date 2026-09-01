@@ -56,6 +56,9 @@ src/
   mock_ee.py                   deterministic offline Earth Engine mock, so the
                                whole pipeline runs with no network / auth / quota.
   cli.py                       command-line entry point.
+console/
+  app.py                       OPERATOR view: run the engine, records,
+                               roll-up, backup, method. Its own address.
 dashboard/
   app.py, data.py              scheme-MANAGER view: canals, equity, continuity.
 farmer_app/
@@ -77,7 +80,7 @@ geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
   canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
                                against what the engine requires, before a run.
-tests/                         749 tests; run with no Earth Engine.
+tests/                         765 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -859,3 +862,52 @@ returns the key when a label is missing, so a whole page of the sidebar rendered
 as `page_units` and `page_backup` in the browser while every test passed. A test
 now walks the app source for every `ui.t("…")` and asserts the key exists. The
 failure mode of a silent fallback is that nobody notices.
+
+
+## Three applications, split by audience
+
+The farm app is ONE screen: the map, the list, and the field you picked. That is
+what a farm-monitoring tool is.
+
+Eleven operator features were commissioned and built, and each honestly needed
+somewhere to live. They went into the farm app's sidebar, which became a
+seven-item menu with the farm as item one. Moving them into a collapsed drawer
+was not a fix — a drawer full of pages is still pages, and the reader has to open
+it to find out it is not for them. Every session began with a decision that had
+nothing to do with their crop.
+
+So the split is by **audience**, not by tidiness:
+
+| | who opens it | how often |
+|---|---|---|
+| `farmer_app/` | a farmer or field officer | every morning |
+| `console/` | an operator | occasionally |
+| `dashboard/` | a scheme manager | for the canal network |
+
+```bash
+streamlit run farmer_app/app.py -- --report farm_report.json --fields my_fields.geojson
+streamlit run console/app.py
+```
+
+Nothing was deleted; every console page is the module it always was. What changed
+is that a farmer no longer walks past it. The split is also the right security
+boundary: running the engine, editing the sources and writing a backup archive
+spend money, change files and copy other people's records, and they now sit
+behind a different address — the natural place for a different password, or for
+no route at all from wherever the farm screen is published.
+
+The farm app's sidebar is the language switch. The header is the name and one
+line. For demonstration data that line carries the caveat as a clause — the
+obligation is real (real imagery over invented boundaries is the most misleading
+thing this tool produces) but it does not need its own element.
+
+### A bug the split uncovered
+
+`_render_map` had been called and never defined since an earlier pass. It sits in
+the branch for *boundaries drawn, nothing analysed yet* — the one path nobody
+opens twice — so it imported cleanly, passed every test, and would have died with
+`NameError` in front of the first person who drew a field and reloaded.
+
+A name used only inside a function body is not resolved until that body runs. A
+test now parses the app, collects every local function it calls, and asserts each
+one exists. It found `_render_map` on its first run.

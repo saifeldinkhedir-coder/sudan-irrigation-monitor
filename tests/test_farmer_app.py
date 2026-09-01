@@ -1296,128 +1296,145 @@ class TestTablesSurviveArrow:
             assert f'ui.t("{col}", ar): str(' in block, col
 
 
-class TestTheProductIsTheFrontDoor:
+def _console_source():
+    path = os.path.join(os.path.dirname(__file__), "..", "console", "app.py")
+    return open(path, encoding="utf-8").read()
+
+
+class TestTheFarmAppIsOneScreen:
     """
-    Eleven commissioned features each honestly needed somewhere to live, and
-    the sidebar became a seven-item menu in which the farm map was item one.
-    Nothing was wrong with any single addition; the sum was wrong, and a person
-    opening the app met an administration console and had to find the farm
-    inside it.
+    Eleven operator features were commissioned and built, and each honestly
+    needed somewhere to live. They went into the farm app's sidebar, which
+    became a seven-item menu with the farm as item one.
 
-    The capability stays. The shape goes back.
+    Moving them into a collapsed drawer was not a fix. A drawer full of pages
+    is still pages: the reader has to open it to find out it is not for them,
+    and every session begins with a decision that has nothing to do with their
+    crop.
+
+    So the split is by AUDIENCE - the farm, the machinery, the canal network.
+    Nothing was deleted. A farmer no longer walks past it.
     """
-    def test_only_the_product_is_top_level(self):
+    def _main(self):
+        return _source("app.py").split("def main(")[1].split("\ndef ")[0]
+
+    def test_the_sidebar_holds_the_language_and_nothing_else(self):
+        main = self._main()
+        assert 'st.sidebar.radio("' in main
+        for widget in ("st.sidebar.text_input", "st.sidebar.expander",
+                       "st.sidebar.toggle", "st.sidebar.button",
+                       "st.sidebar.selectbox", "st.sidebar.number_input"):
+            assert widget not in main, widget
+
+    def test_there_is_no_page_navigation_left(self):
+        src = _source("app.py")
+        for gone in ("MAIN_PAGES", "TOOL_PAGES", "def _navigation",
+                     "def _sources", 'ui.t("tools"', 'ui.t("back_to_fields"'):
+            assert gone not in src, gone
+
+    def test_the_operator_pages_were_moved_not_deleted(self):
+        """The whole point of the split is that the capability survives it."""
+        console = _console_source()
+        for key in ("run", "changes", "record", "units", "backup", "about"):
+            assert f'"{key}"' in console, key
+        for mod in ("import about as A", "import changes as CG",
+                    "import record as R", "import runner as RUN",
+                    "import backup as BK", "import registry as REG"):
+            assert mod in console, mod
+
+    def test_the_farm_app_no_longer_imports_the_operator_modules(self):
+        """If the wiring were still there, the next feature would land back in
+        the sidebar because that was the easy place to put it."""
+        src = _source("app.py")
+        for mod in ("import changes as CG", "import record as R",
+                    "import about as A", "import runner as RUN",
+                    "import backup as BK", "import registry as REG",
+                    "import runs as RUNS"):
+            assert mod not in src, mod
+
+    def test_each_application_says_where_the_other_one_is(self):
+        assert "farmer_app/" in _console_source()
+        assert "console/app.py" in _source("app.py")
+
+    def test_the_console_shows_the_security_warning_the_farm_app_prints_it(self):
+        """In the console the reader IS the person deciding where this is
+        published; on the farm screen they are not."""
+        assert "AUTH.gate(ar=ar)" in _console_source()
+        assert "AUTH.gate(ar=ar, quiet=True)" in _source("app.py")
+
+    def test_no_operator_page_renderer_is_left_stranded_in_the_farm_app(self):
+        """Neither the definition NOR the call.
+
+        Deleting the definitions and leaving a call site is how this pass
+        first shipped: every test passed, the module imported, and the page
+        died at runtime with NameError - because a name used only inside a
+        function body is not resolved until that body runs.
+        """
+        src = _source("app.py")
+        for fn in ("_render_units", "_render_backup", "_render_compact",
+                   "_render_accuracy", "_navigation", "_sources"):
+            assert f"def {fn}" not in src, f"definition of {fn}"
+            assert f"{fn}(" not in src, f"call to {fn}"
+
+    def test_every_function_the_farm_app_calls_is_defined_or_imported(self):
+        """The general form of the bug above, so the next one is caught by the
+        suite rather than by opening the page."""
+        import ast
+        import inspect
         import app as APP
-        assert [k for k, _l in APP.MAIN_PAGES] == ["fields", "changes"]
-
-    def test_everything_operational_is_a_tool(self):
-        import app as APP
-        tools = {k for k, _l in APP.TOOL_PAGES}
-        assert tools == {"run", "record", "units", "backup", "about"}
-
-    def test_no_page_is_in_both_places(self):
-        import app as APP
-        assert not ({k for k, _l in APP.MAIN_PAGES}
-                    & {k for k, _l in APP.TOOL_PAGES})
-
-    def test_every_page_is_reachable(self):
-        """A tool nobody can reach is worse than one that was never built: the
-        code is still there to maintain."""
-        import app as APP
-        src = _source("app.py")
-        for key, _label in APP.MAIN_PAGES + APP.TOOL_PAGES:
-            assert f'page == "{key}"' in src or key == "fields", key
-
-    def test_the_default_is_the_farm_not_a_tool(self):
-        import app as APP
-        assert APP.MAIN_PAGES[0][0] == "fields"
-
-    def test_there_is_a_way_back_from_a_tool(self):
-        """Without it the only route to the product is a radio the reader has
-        to notice has stopped matching the screen."""
-        assert '"back_to_fields"' in _source("app.py")
-        assert "back_to_fields" in U.T
-
-    def test_every_navigation_label_exists(self):
-        import app as APP
-        for _k, label in APP.MAIN_PAGES + APP.TOOL_PAGES:
-            assert label in U.T, label
-        assert "tools" in U.T
+        tree = ast.parse(_source("app.py"))
+        defined = {n.name for n in ast.walk(tree)
+                   if isinstance(n, ast.FunctionDef)}
+        called = {n.func.id for n in ast.walk(tree)
+                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+        local = {c for c in called if c.startswith("_")}
+        missing = sorted(c for c in local
+                         if c not in defined and not hasattr(APP, c)
+                         and not hasattr(inspect.builtins, c))
+        assert not missing, f"called but never defined: {missing}"
 
 
-class TestTheScreenCarriesOnlyWhatIsUsed:
-    """
-    Six things had accumulated on screen that said nothing a reader needed:
-    a row of chips restating the figures below them, an empty-state line for a
-    figure that did not exist yet, a deployment warning aimed at somebody else,
-    two file paths at the top of the sidebar, and a navigation item whose only
-    possible content was its own empty state.
+class TestTheHeaderIsANameAndOneLine:
+    def test_no_chips_at_all(self):
+        """Season, crop and field count restated the figures below them, and
+        the demonstration pill was a fourth element for a caveat that fits in
+        a clause."""
+        import inspect
+        src = inspect.getsource(U.topbar)
+        assert "tags" not in src
+        assert 'class="tag' not in src
 
-    None of them was wrong. Each was a small honest addition. The sum was a
-    screen a person had to look past to reach their farm.
-    """
-    def test_the_header_does_not_restate_the_figures_below_it(self):
-        """Season, crop and field count were chips above a row of statistics
-        that says the same things, above field rows that say them again."""
-        src = _source("app.py")
-        assert "ui.topbar(ar, demo=" in src
-        assert 'ui.t("season", ar)} {str(season' not in src
+    def test_the_demonstration_caveat_did_not_vanish_with_the_pill(self):
+        """It is an obligation, not decoration: real imagery over invented
+        boundaries is the most misleading thing this tool produces."""
+        captured = {}
+        real = U.st.markdown
+        U.st.markdown = lambda html, **kw: captured.setdefault("h", html)
+        try:
+            U.topbar(ar=True, demo=True)
+        finally:
+            U.st.markdown = real
+        assert "عرض توضيحي" in captured["h"]
+        assert "لا تخصّ مزرعة أحد" in captured["h"]
 
-    def test_the_demonstration_pill_is_the_one_thing_that_stayed(self):
-        """Real imagery over invented boundaries is the most misleading
-        combination this tool can produce. One pill is not a row of chips."""
-        assert "demo=bool(report.get(\"note\"))" in _source("app.py")
+    def test_real_data_gets_no_caveat(self):
+        captured = {}
+        real = U.st.markdown
+        U.st.markdown = lambda html, **kw: captured.setdefault("h", html)
+        try:
+            U.topbar(ar=True, demo=False)
+        finally:
+            U.st.markdown = real
+        assert "عرض توضيحي" not in captured["h"]
 
-    def test_the_accuracy_figure_shows_nothing_when_there_is_nothing(self):
-        """An empty state on the main screen is a line that is always there and
-        never useful."""
-        src = _source("app.py")
-        block = src.split("def _render_accuracy")[1].split("def _render_export")[0]
-        assert 'ui.t("accuracy_none"' not in block
-        assert 'ui.t("accuracy", ar)' in block
-
-    def test_the_deployment_warning_is_not_in_the_farmers_sidebar(self):
-        """It is addressed to whoever deploys this, and they read it once."""
-        src = _source("app.py")
-        assert "AUTH.gate(ar=ar, quiet=True)" in src
-        assert "OPEN_WARNING" not in src
-        # It did not vanish - it goes to the console and onto the About page.
-        assert "OPEN_WARNING" in _source("about.py")
-
-    def test_the_quiet_gate_still_reports_an_open_deployment(self):
-        import io
-        import contextlib
-        import auth as A
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            assert A.gate(path="no-such-users-file.json", quiet=True) is None
-        assert "SECURITY" in buf.getvalue()
-        assert "OPEN" in buf.getvalue()
-
-    def test_the_file_paths_left_the_sidebar_floor_for_the_tools_group(self):
-        """A sidebar whose first controls are two file paths is a program's
-        sidebar, not a product's."""
-        src = _source("app.py")
-        main = src.split("def main(")[1].split("def _navigation")[0]
-        assert "Farm report JSON" not in main
-        assert "Field polygons GeoJSON" not in main
-        assert "Farm report JSON" in src.split("def _sources")[1]
-
-    def test_what_changed_is_offered_only_when_it_can_say_something(self):
-        """A navigation item whose only possible content is its own empty state
-        is not navigation; it is a promise the sidebar cannot keep."""
-        src = _source("app.py")
-        nav = src.split("def _navigation")[1].split("def _sources")[0]
-        assert "runs(farm)) >= 2" in nav
-        assert "if can_compare:" in nav
-
-    def test_the_change_page_no_longer_asks_for_a_file_path(self):
-        src = _source("changes.py")
-        assert "text_input" not in src
-        assert "len(history) < 2" in src
-
-    def test_the_compact_toggle_moved_in_with_the_other_switches(self):
-        src = _source("app.py")
-        main = src.split("def main(")[1].split("def _navigation")[0]
-        assert "st.sidebar.toggle" not in main
-        assert 'st.session_state.get("_compact")' in main
+    def test_it_is_one_heading_and_one_paragraph(self):
+        captured = {}
+        real = U.st.markdown
+        U.st.markdown = lambda html, **kw: captured.setdefault("h", html)
+        try:
+            U.topbar(ar=False, demo=True)
+        finally:
+            U.st.markdown = real
+        assert captured["h"].count("<h1>") == 1
+        assert captured["h"].count("<p>") == 1
+        assert "<span" not in captured["h"]

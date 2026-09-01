@@ -47,21 +47,13 @@ import streamlit as st
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import view as D
-import record as R
-import about as A
 import auth as AUTH
 import onboarding as ONB
 import search as S
-import changes as CG
-import runner as RUN
 import ui
 import fieldmap as FM
 import crops as CROPS
-import registry as REG
-import runs as RUNS
 import report_html as RH
-import backup as BK
-import nutrition_climate_ground as NCG
 
 
 def _args():
@@ -70,9 +62,6 @@ def _args():
     p.add_argument("--fields", default=None)
     p.add_argument("--farm", default="farm",
                    help="the name this farm is filed under in the run store")
-    p.add_argument("--hierarchy", default="flat",
-                   help="gezira | flat - see src/registry.py, and confirm the "
-                        "level names with the scheme before using them")
     known, _ = p.parse_known_args()
     return known
 
@@ -88,23 +77,29 @@ def main():
     ui.inject()
     args = _args()
 
+    # THE SIDEBAR IS THE LANGUAGE SWITCH. THAT IS ALL.
+    #
+    # It has held, at various points: a security warning, a farm name, two file
+    # paths, a page selector, a tools drawer and a view toggle. Every one was
+    # added for a good reason, and none of them is what this app is for.
+    # Tucking them into an expander was not a fix - a drawer full of pages is
+    # still pages, and the reader still has to work out it is not for them.
+    #
+    # The operator functions were not deleted. They live in their own
+    # application:
+    #
+    #     streamlit run console/app.py
+    #
+    # That is the honest split. This is the farm; that is the machinery.
     lang = st.sidebar.radio("اللغة · Language", ["العربية", "English"],
                             horizontal=True)
     ar = lang == "العربية"
 
-    # The gate comes before anything is read off disk. Its "this deployment is
-    # OPEN" warning used to sit in the sidebar of every screen. That warning is
-    # for whoever DEPLOYS this, and they read it once; putting it in front of a
-    # farmer every session is shouting a deployment decision at the person who
-    # did not make it. It now goes to the console at startup and onto the About
-    # page, which is where deployment questions are answered.
+    # A deployment with no users file is open; the warning goes to the terminal
+    # at startup, because it is addressed to whoever deploys this.
     user = AUTH.gate(ar=ar, quiet=True)
 
-    # Farm name and file paths are operator configuration, not daily use. They
-    # arrive as command-line arguments and are editable under Tools. A sidebar
-    # whose first controls are two file paths is a program's sidebar, not a
-    # product's.
-    farm = st.session_state.get("_farm", args.farm)
+    farm = args.farm
     report_path = st.session_state.get("_report", args.report)
     fields_path = st.session_state.get("_fields", args.fields or "")
 
@@ -113,9 +108,8 @@ def main():
         ui.note(ui.t("not_your_farm", ar), "stop", ar)
         st.stop()
 
-    # THE FIRST SCREEN. The app used to open on a demonstration farm: not the
-    # reader's land, looking like a working product, with nothing on it saying
-    # how to reach their own fields.
+    # The first screen, when there is nothing yet: draw, load, or look at the
+    # demonstration.
     if ONB.needed(report_path, fields_path):
         ui.topbar(ar)
         choice = ONB.render(ar)
@@ -132,81 +126,34 @@ def main():
         if not st.session_state.get("_draw"):
             st.stop()
 
+    field_fc = (_load(fields_path)
+                if fields_path and os.path.exists(fields_path) else None)
+
     if not os.path.exists(report_path):
-        # Boundaries but no analysis yet: the next step is a run, not a lecture.
+        # Boundaries drawn but nothing analysed yet. Running the engine is an
+        # operator job, so this says where that happens instead of growing a
+        # run panel here.
         ui.topbar(ar)
         ui.note(ui.t("no_report", ar), "warn", ar)
-        season_year = 2022
-        fc = (_load(fields_path)
-              if fields_path and os.path.exists(fields_path) else None)
-        RUN.panel(fields_path if fc else None,
-                  len((fc or {}).get("features", [])), season_year,
-                  "default", ar)
-        if not fc:
-            _render_map({"fields": []}, None, ar)
+        ui.note(ui.t("run_in_console", ar), "", ar)
+        st.code("streamlit run console/app.py", language="bash")
+        # The boundaries still get drawn, and can still be added to. Somebody
+        # who has just traced ten fields should see them, not an empty page
+        # with a shell command on it.
+        feats = D.map_features({"fields": []}, field_fc, ar) if field_fc else []
+        state = FM.render(feats, _map_centre(feats), key="pre_run_map",
+                          drawing=True)
+        _handle_drawings(state, ar)
         st.stop()
 
     report = _load(report_path)
-    season = report.get("season", {})
 
-    # The season, crop and field-count chips are gone. They said what the row
-    # of figures immediately below already says, and what every field row says
-    # again - three restatements above the thing the reader came for.
-    #
-    # The demonstration pill is the one thing left, and it is not decoration:
-    # real imagery over invented boundaries is the most misleading combination
-    # this tool can produce, and it has to be labelled where a reader will see
-    # it. One pill is not a row of chips.
+    # The header is the name and one line. The chips - season, crop, field
+    # count - restated the figures immediately below them; for demonstration
+    # data the line itself carries the caveat as a clause.
     ui.topbar(ar, demo=bool(report.get("note")))
 
-    field_fc = (_load(fields_path)
-                if fields_path and os.path.exists(fields_path) else None)
-    page = _navigation(ar, farm)
-
-    if page == "record":
-        R.render(report)
-        return
-    if page == "about":
-        A.render(report, ar)
-        return
-    if page == "changes":
-        CG.render(report, ar, farm=farm)
-        return
-    if page == "units":
-        _render_units(report, field_fc, ar)
-        return
-    if page == "backup":
-        _render_backup(ar)
-        return
-    if page == "run":
-        season_year = int(str(season.get("start", "2022"))[:4] or 2022)
-        produced = RUN.panel(fields_path if field_fc else None,
-                             len((field_fc or {}).get("features", [])),
-                             season_year, CROPS.resolve(report.get("crop")), ar)
-        if produced:
-            # A finished run goes straight into the history, so the comparison
-            # on the next run is automatic rather than something the reader has
-            # to arrange.
-            try:
-                entry = RUNS.RunStore().record(farm, produced,
-                                               fields_path=fields_path)
-                st.success(f'{ui.t("recorded_as", ar)} {entry["id"]}')
-            except Exception as e:                       # noqa: BLE001
-                st.warning(f'{ui.t("not_recorded", ar)} {e}')
-            st.session_state["_report"] = produced
-        return
-
     index = S.field_index(report, field_fc, ar=ar)
-
-    # The compact view is the whole fields page for somebody on a phone: which
-    # field, and what to do. No map and no drawing, because neither works with
-    # a thumb on a 5-inch screen in daylight. It is a view mode, so it lives
-    # with the other switches under Tools rather than on the sidebar floor.
-    if st.session_state.get("_compact"):
-        _render_compact(report, index, ar)
-        return
-
-    _render_accuracy(ar)
 
     counts = S.status_counts(index)
     ui.stats([
@@ -552,247 +499,6 @@ def _render_field(rec, ar):
             with st.expander(ui.t("not_said", ar)):
                 for w in adv["withheld"]:
                     st.caption(f"**{w['key']}** — {w['reason']}")
-
-
-# The product is ONE screen: the map, the list, and the field you picked. That
-# is what a farm-monitoring tool is, and it is what this app was for.
-#
-# Then eleven commissioned features arrived, and each one honestly needed
-# somewhere to live, and the sidebar became a seven-item menu in which the
-# product was the first item. Nothing was wrong with any single addition; the
-# sum was wrong. A person opening the app met an administration console and had
-# to find the farm inside it.
-#
-# So the capability stays and the SHAPE goes back. Two views are the product -
-# the fields, and what changed since last time. Everything else is a tool: real,
-# reachable in one click, and not competing with the thing the app is for.
-MAIN_PAGES = [("fields", "page_fields"), ("changes", "page_changes")]
-TOOL_PAGES = [("run", "page_run"), ("record", "page_record"),
-              ("units", "page_units"), ("backup", "page_backup"),
-              ("about", "page_about")]
-
-
-def _navigation(ar, farm: str = "") -> str:
-    """
-    The sidebar. Returns the page key; defaults to the product.
-
-    "What changed" only appears once there is something to compare. It used to
-    be a permanent second item that, with one run or none, could say nothing
-    but "no history yet" and offer a box to type a file path into. A navigation
-    item whose only possible content is its own empty state is not navigation;
-    it is a promise the sidebar cannot keep, and the reader pays for it with a
-    click every time.
-    """
-    can_compare = False
-    try:
-        can_compare = len(RUNS.RunStore().runs(farm)) >= 2
-    except Exception:                                    # noqa: BLE001
-        can_compare = False
-
-    if can_compare:
-        def _picked():
-            st.session_state["_page"] = st.session_state["_main"]
-
-        keys = [k for k, _l in MAIN_PAGES]
-        current = st.session_state.get("_page", "fields")
-        st.sidebar.radio(
-            ui.t("page", ar), keys,
-            index=keys.index(current) if current in keys else 0,
-            format_func=lambda k: ui.t(dict(MAIN_PAGES)[k], ar),
-            key="_main", on_change=_picked)
-    elif st.session_state.get("_page") == "changes":
-        st.session_state["_page"] = "fields"
-
-    with st.sidebar.expander(ui.t("tools", ar)):
-        for key, label in TOOL_PAGES:
-            if st.button(ui.t(label, ar), key=f"nav_{key}", width="stretch"):
-                st.session_state["_page"] = key
-        st.toggle(ui.t("compact", ar), key="_compact",
-                  help=ui.t("compact_help", ar))
-        st.divider()
-        _sources(ar)
-
-    page = st.session_state.get("_page", "fields")
-    if page in dict(TOOL_PAGES):
-        # A tool is somewhere you went, so there is a way back.
-        if st.sidebar.button(ui.t("back_to_fields", ar), width="stretch",
-                             type="primary"):
-            st.session_state["_page"] = "fields"
-            st.rerun()
-    return page
-
-
-def _sources(ar) -> None:
-    """Where the data comes from - operator configuration, under Tools.
-
-    These were the first three controls in the sidebar, above everything the
-    app is for. They are set once, usually on the command line, and a farmer
-    never touches them.
-    """
-    args = _args()
-    st.caption(ui.t("sources", ar))
-    farm = st.text_input(ui.t("farm_name", ar),
-                         st.session_state.get("_farm", args.farm))
-    report = st.text_input("Farm report JSON",
-                           st.session_state.get("_report", args.report))
-    fields = st.text_input("Field polygons GeoJSON",
-                           st.session_state.get("_fields", args.fields or ""))
-    if (farm, report, fields) != (st.session_state.get("_farm", args.farm),
-                                  st.session_state.get("_report", args.report),
-                                  st.session_state.get("_fields",
-                                                       args.fields or "")):
-        st.session_state["_farm"] = farm
-        st.session_state["_report"] = report
-        st.session_state["_fields"] = fields
-        st.rerun()
-
-
-def _render_units(report, field_fc, ar):
-    """
-    The farm rolled up to an administrative level.
-
-    This is the question anybody with authority over more than one field asks
-    first, and a flat list cannot answer it without a spreadsheet.
-    """
-    args = _args()
-    h = REG.preset(st.sidebar.selectbox(
-        ui.t("hierarchy", ar), list(REG.PRESETS),
-        index=list(REG.PRESETS).index(args.hierarchy)
-        if args.hierarchy in REG.PRESETS else 0))
-    ui.section(ui.t("page_units", ar), h.name, ar)
-
-    if h.depth() == 0:
-        ui.note(("لا هرم إداري في هذا التشغيل. اختر «gezira» إن كانت حقولك "
-                 "تحمل المجموعة والقسم والنمرة والحواشة." if ar else
-                 "This deployment has no hierarchy. Choose \"gezira\" if your "
-                 "fields carry group, block, number and tenancy."), "", ar)
-        return
-
-    props_by = {(f.get("properties") or {}).get("name", ""):
-                (f.get("properties") or {})
-                for f in (field_fc or {}).get("features", [])}
-    level = st.selectbox(ui.t("roll_up_to", ar), h.keys,
-                         format_func=lambda k: h.label(k, ar))
-    agg = REG.aggregate(report, h, level, props_by)
-
-    if not agg["units"] and not agg["unplaced"]:
-        ui.note(ui.t("no_match", ar), "warn", ar)
-        return
-
-    for u in agg["units"]:
-        tags = [f'{u["n_fields"]} {ui.t("fields", ar)}',
-                f'{ui.t("coverage", ar)} {u["coverage"]:.0%}']
-        if u["n_unmeasured"]:
-            tags.append(f'{u["n_unmeasured"]} {D.label(D.STATUS_LABEL, "unmeasured", ar)}')
-        status = ("attention" if u["n_attention"] else
-                  "unmeasured" if u["withheld"] else "ok")
-        right = (ui.t("unit_withheld", ar) if u["withheld"]
-                 else f'NDVI {u["mean_vigour"]:.3f}')
-        # A withheld mean says WHY, in place of the number. Forty fields of
-        # which six could not be seen produce a figure describing thirty-four.
-        ui.field_row(u["key"], status,
-                     f'{u["n_attention"]} {D.label(D.STATUS_LABEL, "attention", ar)}',
-                     tags, right=right,
-                     sub=(u.get("reason_ar") if ar else u.get("reason", "")),
-                     ar=ar)
-
-    if agg["unplaced"]:
-        ui.section(ui.t("unplaced_fields", ar), "", ar)
-        for u in agg["unplaced"]:
-            st.caption(f'{u["name"]} — {u["reason"]}')
-
-    with st.expander(ui.t("why_q", ar)):
-        st.caption(agg["basis"])
-
-
-def _render_backup(ar):
-    """What is lost if this machine is, and one file that carries it away."""
-    ui.section(ui.t("page_backup", ar), "", ar)
-    s = BK.survey(".")
-    ui.note(s["note_ar"] if ar else s["note"], "", ar)
-
-    rows = []
-    for f in s["found"]:
-        n = sum(v for v in (f.get("rows") or {}).values()
-                if isinstance(v, int))
-        rows.append((f["file"], f'{n} rows', f'{f["bytes"] // 1024} KB'))
-    ui.stats([(ui.t("backup_what", ar), len(s["found"]), None),
-              (ui.t("photographs", ar), s["n_photographs"],
-               f'{s["photograph_bytes"] // 1024} KB')])
-    for name, n, size in rows:
-        ui.field_row(name, "ok", n, [size], ar=ar)
-    for m in s["missing"]:
-        ui.field_row(m["file"], "unmeasured", "—", [], sub=m["why"], ar=ar)
-
-    dest = st.text_input("ZIP", "farm_backup.zip")
-    if st.button(ui.t("backup_make", ar), type="primary"):
-        made = BK.create(dest)
-        st.success(f'{ui.t("backup_done", ar)}: {dest} '
-                   f'({made["bytes"] // 1024} KB, {made["n_files"]})')
-        # Verified immediately. An untested backup is a belief, not a backup.
-        v = BK.verify(dest)
-        if v["ok"]:
-            st.caption(f'✓ {v["n_files"]}')
-        else:
-            st.error(v["reason"])
-        ui.note(made["warning_ar"] if ar else made["warning"], "warn", ar)
-
-    check = st.text_input(ui.t("backup_verify", ar), "")
-    if check:
-        v = BK.verify(check)
-        (st.success if v["ok"] else st.error)(
-            f'{v.get("n_files", 0)} · {v.get("reason") or "ok"}')
-
-
-def _render_compact(report, index, ar):
-    """The phone view: which field, and what to do.
-
-    No map and no drawing - neither works with a thumb on a five-inch screen in
-    daylight, and the officer standing in a field does not need them. They need
-    the order and the reason.
-    """
-    ranked = sorted(index, key=lambda r: (STATUS_RANK.get(r["status"], 9),
-                                          r["vigour"] if r["vigour"] is not None
-                                          else 9))
-    counts = S.status_counts(index)
-    ui.stats([(D.label(D.STATUS_LABEL, k, ar), counts[k], None)
-              for k in ("attention", "watch", "unmeasured")])
-    for r in ranked:
-        rec = next((f for f in report.get("fields", [])
-                    if f.get("name") == r["name"]), {})
-        adv = rec.get("advisory" if ar else "advisory_en") or {}
-        first = (adv.get("items") or [{}])[0].get("text", "")
-        ui.field_row(r["name"], r["status"],
-                     D.label(D.STATUS_LABEL, r["status"], ar),
-                     [r["crop"]] if r.get("crop") else [],
-                     right=("NDVI %.3f" % r["vigour"])
-                     if r["vigour"] is not None else "—",
-                     sub=first or r["why"], ar=ar)
-
-
-def _render_accuracy(ar):
-    """
-    The only figure here that MEASURES this tool's accuracy rather than
-    claiming it. It is put on the working screen because no competitor shows
-    one - not because they are better, but because they do not collect it.
-    """
-    try:
-        store = NCG.ObservationStore("observations.db")
-    except Exception:                                    # noqa: BLE001
-        return
-    try:
-        s = store.agreement_summary()
-    finally:
-        store.close()
-    if s.get("available"):
-        ui.stats([(ui.t("accuracy", ar),
-                   f'{round(100 * s["agreement_rate"])}%',
-                   f'{s["total"]} · {s["unclear"]} '
-                   + ("غير واضحة" if ar else "unclear"))])
-    # Nothing when there is nothing. The invitation to start collecting
-    # comparisons belongs on the scouting form, where somebody can act on it -
-    # not as a permanent line on the main screen saying that a figure does not
-    # exist yet.
 
 
 def _render_export(report, field_fc, ar):

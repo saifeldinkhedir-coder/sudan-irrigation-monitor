@@ -22,6 +22,26 @@
       "port": 8503
     },
     {
+      "name": "console",
+      "runtimeExecutable": "streamlit",
+      "runtimeArgs": [
+        "run",
+        "console/app.py",
+        "--server.port",
+        "8505",
+        "--server.address",
+        "127.0.0.1",
+        "--server.headless",
+        "true",
+        "--",
+        "--report",
+        "docs/farm_report_demo.json",
+        "--fields",
+        "docs/gezira_fields_demo.geojson"
+      ],
+      "port": 8505
+    },
+    {
       "name": "dashboard",
       "runtimeExecutable": "streamlit",
       "runtimeArgs": [
