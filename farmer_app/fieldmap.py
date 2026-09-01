@@ -40,6 +40,7 @@ overlay and the numbers beside it.
 from __future__ import annotations
 
 import json
+import math
 from typing import Optional
 
 import folium
@@ -67,18 +68,59 @@ def _hex(rgba) -> str:
     return "#%02x%02x%02x" % tuple(rgba[:3])
 
 
+def centre_and_zoom(features, width_px: int = 550, height_px: int = 520):
+    """
+    Frame the map on the fields that exist, rather than guessing a zoom.
+
+    A farm spread over ten kilometres has a mean position with no field
+    anywhere near it, so opening at a fixed zoom around that mean showed bare
+    ground with every polygon just off the edge - which is indistinguishable,
+    to the person looking, from a map that failed to draw them. That is the
+    complaint "the field shapes do not show", and it survives having drawn the
+    shapes correctly.
+
+    folium's own fit_bounds is not used: streamlit-folium rebuilds the map from
+    its properties and the fitBounds call does not survive the trip. Computing
+    the zoom here is deterministic, testable without a browser, and cannot be
+    quietly dropped by a component upgrade.
+    """
+    pts = [p for f in features for p in f.get("polygon", [])]
+    if not pts:
+        return None, None
+    lons = [p[0] for p in pts]
+    lats = [p[1] for p in pts]
+    centre = ((min(lats) + max(lats)) / 2.0, (min(lons) + max(lons)) / 2.0)
+
+    # Web Mercator: a tile is 256 px and covers 360 degrees of longitude at
+    # zoom 0. A single field has a span of zero, so the spans are floored to
+    # something small enough to give a close view without dividing by nought.
+    lon_span = max(max(lons) - min(lons), 1e-4)
+    lat_span = max(max(lats) - min(lats), 1e-4)
+    z_lon = math.log2(360.0 * width_px / (256.0 * lon_span))
+    z_lat = math.log2(180.0 * height_px / (256.0 * lat_span))
+    zoom = int(max(2, min(18, math.floor(min(z_lon, z_lat)))))
+    return centre, zoom
+
+
 def build_map(features: list, centre: tuple, zoom: int = 14,
-              drawing: bool = True) -> folium.Map:
+              drawing: bool = True, highlight=None) -> folium.Map:
     """
     Satellite map with the analysed fields drawn on it and, optionally, the
     tools to draw more.
 
     `features` are the joined polygons from view.map_features - each already
     carrying the colour that says what was measured and what was not.
+
+    `highlight` is the set of names the current search matched. Fields outside
+    it are DIMMED, not removed. Removing them would mean a filter could make a
+    field vanish from the picture of the farm, and a farmer scrolling past an
+    empty patch of imagery has no way to tell a field that was filtered out
+    from one the tool never had.
     """
-    lat, lon = centre
-    m = folium.Map(location=[lat, lon], zoom_start=zoom, tiles=None,
-                   control_scale=True)
+    fitted, fitted_zoom = centre_and_zoom(features)
+    lat, lon = fitted or centre
+    m = folium.Map(location=[lat, lon], zoom_start=fitted_zoom or zoom,
+                   tiles=None, control_scale=True)
 
     # `show` matters here, not just layer order. Two base layers added without
     # it are BOTH active, and folium paints the later one on top - so adding a
@@ -95,11 +137,13 @@ def build_map(features: list, centre: tuple, zoom: int = 14,
 
     for f in features:
         colour = _hex(f["colour"])
+        on = highlight is None or f["name"] in highlight
         folium.Polygon(
             # folium wants (lat, lon); GeoJSON is (lon, lat).
             locations=[(p[1], p[0]) for p in f["polygon"]],
-            color="#ffffff", weight=2, fill=True, fill_color=colour,
-            fill_opacity=0.45,
+            color="#ffffff" if on else "#C9C4B8",
+            weight=2 if on else 1, fill=True, fill_color=colour,
+            fill_opacity=0.45 if on else 0.10,
             tooltip=folium.Tooltip(
                 f"<b>{f['name']}</b><br>{f['status']}<br>"
                 f"NDVI {f['vigour_display']}<br>{f['why']}"),
@@ -135,13 +179,34 @@ def build_map(features: list, centre: tuple, zoom: int = 14,
 
 
 def render(features: list, centre: tuple, key: str = "fieldmap",
-           height: int = 520, drawing: bool = True) -> dict:
-    """Draw the map and return whatever streamlit-folium reports back, which
-    includes any shapes the user drew this run."""
-    m = build_map(features, centre, drawing=drawing)
+           height: int = 520, drawing: bool = True, highlight=None) -> dict:
+    """Draw the map and return whatever streamlit-folium reports back: the
+    shapes drawn this run, and where the last click landed.
+
+    `last_object_clicked` is returned so a click on a field can select it. The
+    click is resolved to a field by point-in-polygon rather than by matching
+    the tooltip text, because tooltip text is display copy - it gets reworded,
+    translated and truncated, and a selector built on it breaks silently in
+    whichever language nobody tested."""
+    m = build_map(features, centre, drawing=drawing, highlight=highlight)
     return st_folium(m, key=key, height=height,
                      use_container_width=True,
-                     returned_objects=["all_drawings", "last_active_drawing"])
+                     returned_objects=["all_drawings", "last_active_drawing",
+                                       "last_object_clicked"])
+
+
+def last_drawn_polygon(state) -> Optional[dict]:
+    """The most recent drawn shape, as a geometry to select fields with.
+
+    Only the LAST shape counts. Two shapes drawn at once would need a union
+    rule, and every choice of rule is a surprise to somebody - so the tool
+    takes the newest one and the caption says so."""
+    drawings = (state or {}).get("all_drawings") or []
+    for shape in reversed(drawings):
+        geom = (shape or {}).get("geometry") or {}
+        if geom.get("type") == "Polygon" and geom.get("coordinates"):
+            return geom
+    return None
 
 
 # ==============================================================================

@@ -280,6 +280,52 @@ class RecordStore:
 # ADVISORY - rule-based, every sentence traceable to a computed indicator
 # ==============================================================================
 
+# ==============================================================================
+# ENGINE VOCABULARY THAT REACHES A FARMER'S SCREEN
+# ==============================================================================
+#
+# The advisory interpolates engine verdicts into its sentences. Those verdicts
+# are written in English by the layer that computes them, so an Arabic reader
+# was handed "chlorophyll condition: WITHIN SCHEME NORM" - the sentence in
+# their language, the finding in someone else's. That is the half of the
+# sentence that carries the meaning.
+#
+# Translated by exact value and by leading token, with anything unrecognised
+# passed through verbatim: a new engine verdict then appears in English, which
+# is visible and fixable, rather than being blanked, which is not.
+
+AR_CONDITION = {
+    "BELOW SCHEME NORM": "دون معدّل المخطط",
+    "WITHIN SCHEME NORM": "ضمن معدّل المخطط",
+    "ABOVE SCHEME NORM": "فوق معدّل المخطط",
+}
+
+AR_READING = {
+    "STRESS WITH LITTLE RAIN": (
+        "إجهاد مع مطر قليل — يتّسق مع الجفاف ومع خلل في الإمداد معًا، ولا "
+        "ينفصل السببان بهذه البيانات وحدها."),
+    "STRESS DESPITE RAIN": (
+        "إجهاد رغم المطر — الجفاف تفسير ضعيف هنا، فالنظر يتّجه إلى الإمداد أو "
+        "الصرف أو الملوحة أو إدارة المحصول."),
+    "No stress signal": (
+        "لا إشارة إجهاد مقابل العتبة المرجعية لمنطقة الأمر."),
+    "LIKELY DEFICIENT": (
+        "غالبًا ناقص — دون شريط الحقل المشبع بالنيتروجين بفارق واضح."),
+    "MARGINAL": "حدّي — يستحقّ المتابعة خلال الأسبوعين القادمين.",
+    "SUFFICIENT against": "كافٍ مقابل الشريط المرجعي.",
+}
+
+
+def _ar_reading(text) -> str:
+    """Arabic for an engine verdict sentence, matched on its leading token."""
+    if not text:
+        return text
+    for prefix, arabic in AR_READING.items():
+        if str(text).startswith(prefix):
+            return arabic
+    return str(text)
+
+
 def advisory(field_record: dict, canal_record: Optional[dict] = None,
              lang: str = "ar") -> dict:
     """
@@ -343,7 +389,8 @@ def advisory(field_record: dict, canal_record: Optional[dict] = None,
     if ref.get("verdict_withheld"):
         withheld.append(("stress", "no reference area wide enough for a threshold"))
     elif ctx.get("reading_status") == "OK" and ctx.get("reading"):
-        items.append(("stress", f"قراءة الحالة: {ctx['reading']}",
+        items.append(("stress",
+                      f"قراءة الحالة: {_ar_reading(ctx['reading'])}",
                       f"condition reading: {ctx['reading']}"))
     else:
         # Agriculture-engine shape: compare each reading with its own derived
@@ -406,14 +453,18 @@ def advisory(field_record: dict, canal_record: Optional[dict] = None,
             items.append((
                 "nutrition",
                 f"مؤشّر الكفاية مقابل شريطك المرجعي: "
-                f"{nutrition['sufficiency_index']}.",
+                f"{nutrition['sufficiency_index']}"
+                + (f" — {_ar_reading(nutrition.get('reading'))}"
+                   if nutrition.get("reading") else "") + ".",
                 f"sufficiency against your reference strip: "
                 f"{nutrition['sufficiency_index']}."))
         elif nutrition.get("relative_condition"):
+            cond_ar = AR_CONDITION.get(nutrition["relative_condition"],
+                                       nutrition["relative_condition"])
             items.append((
                 "nutrition",
                 f"حالة الكلوروفيل مقارنة بالمخطط: "
-                f"{nutrition['relative_condition']}. هذه مرتبة نسبية وليست "
+                f"{cond_ar}. هذه مرتبة نسبية وليست "
                 "قياسًا للنيتروجين.",
                 f"chlorophyll condition within the scheme: "
                 f"{nutrition['relative_condition']}. This is a relative rank, "

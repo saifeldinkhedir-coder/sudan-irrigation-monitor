@@ -400,10 +400,26 @@ class TestBilingual:
     def test_an_unknown_key_returns_itself_rather_than_raising(self):
         assert U.t("no_such_label", ar=True) == "no_such_label"
 
-    def test_the_arabic_tagline_keeps_the_measurement_promise(self):
-        ar = U.T["tagline"][0]
-        assert "المستشعر" in ar
-        assert "المقياس" in ar
+    def test_the_tagline_says_what_the_tool_does_for_the_reader(self):
+        """The tagline used to explain the provenance discipline. That is true
+        and it is not what a farmer opens the app to read, so it was replaced
+        with what the tool does. The promise itself did not weaken - the next
+        test checks where it went."""
+        ar, en = U.T["tagline"]
+        assert "المستشعر" not in ar and "sensor" not in en.lower()
+        assert "الماء" in ar and "water" in en.lower()
+
+    def test_the_measurement_promise_moved_rather_than_vanished(self):
+        """Every figure still names its sensor and its scale - as two columns
+        on every row, which is where the promise is actually kept, and as a
+        section of the About page, which is where it is explained. A tagline
+        was only ever a claim about those."""
+        import about as A
+        assert U.T["sensor"][0] and U.T["measured_at"][0]
+        ar_body = A.SECTIONS["provenance"][2]
+        assert "المستشعر" in ar_body and "غير متاح" in ar_body
+        en_body = A.SECTIONS["provenance"][3]
+        assert "sensor" in en_body and "not available" in en_body
 
     def test_the_no_verdict_warning_survives_translation(self):
         """The distinction between 'not measured' and 'healthy' is the whole
@@ -838,3 +854,209 @@ def test_the_street_map_does_not_cover_the_satellite_imagery():
             or "show: false" in segment.lower() \
             or "showdefault" not in segment.lower(), \
             "the street map must not start active over the imagery"
+
+
+# ==============================================================================
+# THE PRODUCT SURFACE
+# ==============================================================================
+
+def _source(name):
+    path = os.path.join(os.path.dirname(__file__), "..", "farmer_app", name)
+    return open(path, encoding="utf-8").read()
+
+
+class TestMethodIsOffTheWorkingScreen:
+    """
+    The working screen answers "which field, and what do I do". Everything that
+    answers "how was this number arrived at" moved to the About page, whole.
+
+    The test applied to each paragraph was: would knowing this change what the
+    reader DOES today? "Not measured is not healthy" passes - you go and look.
+    "Green-up is the first crossing of half the seasonal amplitude" does not.
+    """
+    METHOD_KEYS = ("ranking_basis", "sortable_caveat", "map_caption",
+                   "etc_method_note")
+
+    def test_no_method_essay_is_rendered_beside_the_numbers(self):
+        src = _source("app.py")
+        rendered = [k for k in self.METHOD_KEYS if f'"{k}"' in src]
+        assert not rendered, f"method text back on the working screen: {rendered}"
+
+    def test_the_limitations_list_is_not_on_the_working_screen(self):
+        assert 'report.get("limitations"' not in _source("app.py")
+
+    def test_the_demo_paragraph_is_not_on_the_working_screen(self):
+        """It used to open with a five-line paragraph and an expander. What
+        remains is the label, which is the part that stops a reader mistaking
+        demonstration output for their own farm."""
+        src = _source("app.py")
+        assert 'report.get("note_ar")' not in src
+        assert "demo=bool(report.get(\"note\"))" in src
+
+    def test_the_method_moved_rather_than_being_deleted(self):
+        """A tool whose case rests on auditable numbers cannot bury the basis
+        for them. Every sentence taken off the working screen is reproduced on
+        the About page."""
+        import about as A
+        assert set(A.SECTIONS) >= {"provenance", "ranking", "water",
+                                   "phenology", "search"}
+        for _k, (ar_h, en_h, ar_b, en_b) in A.SECTIONS.items():
+            assert ar_h and en_h and len(ar_b) > 80 and len(en_b) > 80
+        assert 'report.get("limitations")' in _source("about.py")
+        assert 'report.get("note")' in _source("about.py")
+
+    def test_the_caveats_that_change_a_decision_stayed(self):
+        """Two warnings survive on the working screen because they change what
+        the reader concludes, not how a number was computed: a grey field is
+        not a healthy one, and a water requirement is not a delivery."""
+        src = _source("app.py")
+        assert '"unmeasured_note"' in src
+        assert '"no_verdict"' in src
+        assert "NEEDED, not received" in _source("view.py")
+
+
+class TestSearchIsOnTheWorkingScreen:
+    def test_the_search_box_is_not_hidden_behind_a_menu(self):
+        """A scheme has tens of thousands of tenancies. A search you have to
+        find first is a search nobody uses."""
+        src = _source("app.py")
+        assert "_toolbar(index, ar)" in src
+        assert "st.expander" not in src.split("def _toolbar")[1].split("def ")[0]
+
+    def test_every_axis_the_user_asked_for_is_wired(self):
+        src = _source("app.py")
+        for widget in ('ui.t("search"', 'ui.t("crop_filter"',
+                       'ui.t("date_basis"', 'ui.t("harvest_filter"',
+                       'ui.t("area_filter"'):
+            assert widget in src, widget
+
+    def test_a_map_click_selects_by_geometry_not_by_tooltip_text(self):
+        """Tooltip text is display copy - reworded, translated, truncated. A
+        selector built on it breaks silently in whichever language nobody
+        tested."""
+        src = _source("app.py")
+        assert "S.field_at_point(" in src
+        assert "last_object_clicked_tooltip" not in src
+
+
+class TestFilteringNeverHidesAField:
+    def test_the_map_dims_unmatched_fields_rather_than_removing_them(self):
+        import fieldmap as FM
+        feats = [{"name": "A", "colour": [70, 150, 95, 170],
+                  "polygon": [[33.0, 14.0], [33.01, 14.0], [33.01, 14.01],
+                              [33.0, 14.0]],
+                  "status": "ok", "vigour_display": "0.500", "why": "x"},
+                 {"name": "B", "colour": [70, 150, 95, 170],
+                  "polygon": [[33.2, 14.2], [33.21, 14.2], [33.21, 14.21],
+                              [33.2, 14.2]],
+                  "status": "ok", "vigour_display": "0.500", "why": "x"}]
+        html = FM.build_map(feats, (14.1, 33.1), highlight={"A"})._repr_html_()
+        # Both are still drawn. A filter that made a field disappear from the
+        # picture of the farm would leave a farmer unable to tell a filtered
+        # field from one the tool never had.
+        assert html.count("fillOpacity") >= 2
+        assert "0.1" in html and "0.45" in html
+
+
+class TestUnavailableRowsKeepTheirReason:
+    def test_the_reason_rides_on_the_row_as_a_tooltip(self):
+        """It is the one piece of method text that changes what the reader
+        does - wait for a clear scene, or go and look - so it stays at the
+        point of use, and costs no vertical space."""
+        rows = [{"variable": "Surface temperature", "value": "not available",
+                 "threshold": "—", "verdict": "—", "sensor": "Landsat 8/9",
+                 "scale": "100 m", "reason": "no cloud-free thermal scene"}]
+        captured = {}
+        real = U.st.markdown
+        U.st.markdown = lambda html, **kw: captured.setdefault("h", html)
+        try:
+            U.variables_table(rows, ar=False)
+        finally:
+            U.st.markdown = real
+        assert 'title="no cloud-free thermal scene"' in captured["h"]
+        assert 'class="na"' in captured["h"]
+
+    def test_an_arabic_unavailable_row_is_still_marked_unavailable(self):
+        """The row style keyed on the English string "not available". In Arabic
+        the cell reads "غير متاح", so every unavailable row in the Arabic table
+        was rendered as though it held a number."""
+        rows = [{"variable": "حرارة السطح", "value": "غير متاح",
+                 "threshold": "—", "verdict": "—", "sensor": "Landsat 8/9",
+                 "scale": "100 m", "reason": "لا مشهد حراري صافٍ"}]
+        captured = {}
+        real = U.st.markdown
+        U.st.markdown = lambda html, **kw: captured.setdefault("h", html)
+        try:
+            U.variables_table(rows, ar=True)
+        finally:
+            U.st.markdown = real
+        assert 'class="na"' in captured["h"]
+
+    def test_an_arabic_below_threshold_reading_is_still_coloured_red(self):
+        rows = [{"variable": "النموّ (NDVI)", "value": "0.2000",
+                 "threshold": "0.3000", "verdict": "دون العتبة",
+                 "sensor": "Sentinel-2", "scale": "10 m"}]
+        captured = {}
+        real = U.st.markdown
+        U.st.markdown = lambda html, **kw: captured.setdefault("h", html)
+        try:
+            U.variables_table(rows, ar=True)
+        finally:
+            U.st.markdown = real
+        assert 'class="below"' in captured["h"]
+
+
+class TestTheMapFramesTheFields:
+    """
+    "The field shapes do not show" survives having drawn the shapes correctly.
+    A farm ten kilometres across has a mean position with no field near it, so
+    a fixed zoom around that mean opens on bare ground with every polygon just
+    off the edge - which looks exactly like a map that failed.
+    """
+    def _spread(self):
+        import fieldmap as FM
+        return FM, [{"name": n, "colour": [70, 150, 95, 170], "status": "ok",
+                     "vigour_display": "0.500", "why": "x",
+                     "polygon": [[lon, lat], [lon + .006, lat],
+                                 [lon + .006, lat + .006],
+                                 [lon, lat + .006], [lon, lat]]}
+                    for n, lon, lat in (("A", 33.10, 14.42), ("B", 33.14, 14.45),
+                                        ("C", 33.18, 14.48), ("D", 33.23, 14.47))]
+
+    def test_every_field_falls_inside_the_opening_view(self):
+        FM, feats = self._spread()
+        (lat, lon), zoom = FM.centre_and_zoom(feats, 550, 520)
+        half_lon = 360.0 * 550 / (256.0 * 2 ** zoom) / 2
+        half_lat = 180.0 * 520 / (256.0 * 2 ** zoom) / 2
+        for f in feats:
+            for x, y in f["polygon"]:
+                assert abs(x - lon) <= half_lon, f["name"]
+                assert abs(y - lat) <= half_lat, f["name"]
+
+    def test_a_single_field_is_not_framed_from_orbit(self):
+        """One field must not produce zoom 2. The span is floored, not the
+        zoom, so a lone polygon still opens close enough to check against the
+        ground."""
+        FM, feats = self._spread()
+        _c, zoom = FM.centre_and_zoom(feats[:1])
+        assert zoom >= 14
+
+    def test_a_wider_farm_opens_further_out(self):
+        FM, feats = self._spread()
+        _c, near = FM.centre_and_zoom(feats[:2])
+        _c, far = FM.centre_and_zoom(feats)
+        assert far < near
+
+    def test_no_fields_leaves_the_caller_s_centre_alone(self):
+        import fieldmap as FM
+        assert FM.centre_and_zoom([]) == (None, None)
+
+    def test_the_map_actually_opens_on_the_computed_frame(self):
+        """folium's own fit_bounds does not survive streamlit-folium rebuilding
+        the map, so the zoom is computed here and passed as zoom_start. This
+        pins that it reaches the map object."""
+        FM, feats = self._spread()
+        (lat, lon), zoom = FM.centre_and_zoom(feats)
+        m = FM.build_map(feats, (0.0, 0.0), zoom=14)
+        assert m.location == [lat, lon]
+        assert m.options["zoom"] == zoom

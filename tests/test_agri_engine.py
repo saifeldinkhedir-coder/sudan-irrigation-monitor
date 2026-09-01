@@ -286,3 +286,40 @@ class TestSeriesOffsets:
         series = {"status": "OK", "dates": ["2022-07-01", "2022-07-11"],
                   "ndvi": [0.2, None]}
         assert ag._series_day_offsets(series, "2022-07-01") == (None, None)
+
+
+class TestTheLimitsAreStatedInBothLanguages:
+    """
+    The list of things this tool does NOT claim is the last list that should
+    reach a Sudanese farmer in English. It is emitted by the engine in both
+    languages rather than translated in the app, for the same reason every
+    other vocabulary here is: matching generated English afterwards fails
+    silently the moment the wording changes, and it fails by showing English
+    to an Arabic reader.
+    """
+    def _report(self):
+        import json
+        import os
+        path = os.path.join(os.path.dirname(__file__), "..", "docs",
+                            "farm_report_demo.json")
+        return json.load(open(path, encoding="utf-8"))
+
+    def test_the_engine_emits_both_lists_at_the_same_length(self):
+        import io
+        import os
+        src = io.open(os.path.join(os.path.dirname(__file__), "..", "src",
+                                   "agri_engine.py"), encoding="utf-8").read()
+        assert '"limitations_ar"' in src
+        r = self._report()
+        assert len(r["limitations_ar"]) == len(r["limitations"])
+
+    def test_no_arabic_limitation_is_left_in_english(self):
+        for line in self._report()["limitations_ar"]:
+            assert any("\u0600" <= ch <= "\u06ff" for ch in line), line
+
+    def test_the_two_refusals_that_matter_most_survive_translation(self):
+        """Needed is not received, and yield is refused without local
+        calibration. Both are load-bearing."""
+        joined = " ".join(self._report()["limitations_ar"])
+        assert "ما وصله فعلًا" in joined
+        assert "مرفوضة دون معايرة" in joined

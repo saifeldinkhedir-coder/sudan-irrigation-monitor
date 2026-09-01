@@ -46,15 +46,21 @@ src/
 dashboard/
   app.py, data.py              scheme-MANAGER view: canals, equity, continuity.
 farmer_app/
-  app.py, view.py              FARMER view: map of fields, every measured
-                               variable, nutrition ladder, advisory.
+  app.py                       FARMER view: search, map beside list, field
+                               detail. The sequence of what to show.
+  search.py                    find a field: name / crop / date / harvest, and
+                               selection by drawing a polygon on the map.
+  fieldmap.py                  satellite map, polygon tool, place search, and
+                               the frame that fits every field on opening.
+  view.py, ui.py               display decisions; layout, tokens and copy.
+  about.py                     the method, whole, off the working screen.
 geolibre_plugin/
   plugin.json, forms/, bridge.py   Stage 4: manifest, field form, two-way bridge.
 geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
   canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
                                against what the engine requires, before a run.
-tests/                         438 tests; run with no Earth Engine.
+tests/                         498 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -470,3 +476,69 @@ The caveats that change a conclusion stay inline — *unmeasured is not healthy*
 *needed is not received*. Everything that explains **how** a number was reached
 moved behind a single «لماذا؟» / *Why?* — one click for anyone checking the work,
 invisible to everyone else. Nothing was deleted.
+
+A second pass finished the job. Expanders on the working screen are still
+explanation on the working screen, so the method now lives on one **«عن
+البيانات» / About the data** page: what the tool is, where each number comes
+from, how the fields were ordered, the water calculation, green-up and season
+length, and what the search does with what it does not know. The report's own
+sensor list, provenance and limitations sit under it.
+
+Two warnings stayed inline, by one test: *would knowing this change what the
+reader DOES today?* "Not measured is not healthy" passes — you go and look.
+"Green-up is the first crossing of half the seasonal amplitude" does not. The
+reason a row reads *not available* rides on the row as a hover tooltip, because
+it says whether to wait for a clear scene or to go and look.
+
+The header lost its paragraph. It used to open with the provenance discipline —
+true, and the first thing a farmer read every morning before reaching an answer.
+The promise did not weaken; it lives where it is exercised, in the sensor and
+scale columns on every row.
+
+### Finding a field
+
+A search that only works while the farm fits on one screen is a demonstration.
+Gezira is roughly two million feddans across tens of thousands of tenancies, so
+the toolbar is on the working screen, not behind a menu: **name or crop**,
+**crop**, **status**, a **date window** on green-up / harvest / last-seen /
+sowing, **harvest**, and **inside the drawn shape** — draw a polygon and the
+list narrows to the fields whose centre falls in it. Clicking a field on the map
+selects it, resolved by point-in-polygon rather than by matching tooltip text.
+
+Arabic search folds what a keyboard produces several ways: أ إ آ read as ا, ة as
+ه, ى as ي, and Arabic-Indic digits find Western ones. Typing ٣ finds Field 3.
+
+Filtering obeys the rule the colours already obey. A field with no crop recorded
+is not silently dropped by a crop filter — dropping it says *this is not
+sorghum*, when the truth is that nobody said. It goes to a visible **unknown**
+list with the reason. Wheat, by contrast, is a genuine non-match and is not
+reported as uncertainty. On the map, unmatched fields are **dimmed, not
+removed**: a filter that made a field vanish would leave a farmer unable to tell
+a filtered field from one the tool never had.
+
+The harvest filter offers *harvest reported* and *no harvest reported*, not
+"harvested / standing". Nothing measures standing, and an expected harvest date
+is this tool's own arithmetic — labelled ESTIMATED wherever it appears, against
+a farmer's own date labelled REPORTED.
+
+### The map opens on the fields
+
+A farm ten kilometres across has a mean position with no field anywhere near it,
+so a fixed zoom around that mean opened on bare ground with every polygon just
+off the edge — indistinguishable, to the person looking, from a map that failed
+to draw them. The frame is now computed from the bounds of the fields. folium's
+own `fit_bounds` is not used: streamlit-folium rebuilds the map and the call
+does not survive the trip, so the zoom is computed here, tested without a
+browser, and cannot be dropped by a component upgrade.
+
+### One language at a time
+
+The advisory wrote its sentences in Arabic and interpolated the engine's English
+verdicts into them, so a farmer read *«حالة الكلوروفيل مقارنة بالمخطط: WITHIN
+SCHEME NORM»* — the sentence in their language, the finding in someone else's.
+The finding is the half that carries the meaning. Engine verdicts are now
+translated at the point they are written, with anything unrecognised passed
+through in English so a new verdict is visible and fixable rather than blanked.
+
+The list of things the tool does **not** claim is emitted by the engine in both
+languages. It is the last list that should reach a Sudanese farmer in English.

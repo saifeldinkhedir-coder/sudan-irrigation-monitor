@@ -82,13 +82,44 @@ CSS = f"""
    break. */
 [data-testid="stMainBlockContainer"] {{ padding-top: 2.2rem; max-width: 1240px; }}
 
-.hero {{
-  border: 1px solid {LINE}; border-radius: 14px; background: {SURFACE};
-  padding: 1.1rem 1.3rem; margin-bottom: 1.1rem;
+/* The top bar replaces a tall hero card. A product's header identifies the
+   thing and gets out of the way; it is not the place for an essay. */
+.topbar {{
+  display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
+  border-bottom: 1px solid {LINE}; padding-bottom: .7rem; margin-bottom: .9rem;
 }}
-.hero h1 {{ font-size: 1.55rem; margin: 0 0 .25rem 0; color: {INK};
-            letter-spacing: -.01em; }}
-.hero p {{ margin: 0; color: {INK_SOFT}; font-size: .88rem; line-height: 1.5; }}
+.topbar h1 {{ font-size: 1.28rem; margin: 0; color: {INK};
+              letter-spacing: -.01em; font-weight: 700; }}
+.topbar .tag {{ margin-inline-start: auto; }}
+.topbar p {{ width: 100%; margin: .15rem 0 0; color: {INK_SOFT};
+             font-size: .82rem; line-height: 1.5; }}
+
+.tag {{
+  display: inline-flex; align-items: center; gap: .3rem;
+  border: 1px solid {LINE}; border-radius: 999px; padding: .1rem .6rem;
+  font-size: .72rem; color: {INK_SOFT}; background: {PAPER}; white-space: nowrap;
+}}
+.tag.demo {{ border-color: {STATUS_HEX['watch']}; color: #8A5B08;
+             background: #FDF6E7; font-weight: 650; letter-spacing: .04em; }}
+
+/* The field list: one scannable row per field, scrollable so a long scheme
+   does not push the map off the screen. */
+.panel {{ max-height: 520px; overflow-y: auto; padding-inline-end: .25rem; }}
+.frow {{
+  display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
+  border: 1px solid {LINE}; border-inline-start: 4px solid var(--accent);
+  border-radius: 10px; background: {SURFACE};
+  padding: .5rem .7rem; margin-bottom: .4rem;
+}}
+.frow.sel {{ border-color: {INK}; box-shadow: 0 0 0 2px rgba(28,35,33,.07); }}
+.frow .nm {{ font-weight: 650; color: {INK}; font-size: .92rem; }}
+.frow .nd {{ margin-inline-start: auto; font-variant-numeric: tabular-nums;
+             font-size: .8rem; color: {INK_SOFT}; }}
+.frow .sub {{ width: 100%; font-size: .76rem; color: {INK_SOFT};
+              line-height: 1.45; }}
+
+.count {{ font-size: .8rem; color: {INK_SOFT}; margin: .2rem 0 .5rem; }}
+.count b {{ color: {INK}; font-variant-numeric: tabular-nums; }}
 
 .statgrid {{ display: flex; gap: .7rem; flex-wrap: wrap; margin: .9rem 0 1.1rem; }}
 .stat {{
@@ -153,6 +184,15 @@ table.vars td.v {{ font-variant-numeric: tabular-nums; font-weight: 600; }}
 table.vars td.meta {{ color: {INK_SOFT}; font-size: .76rem; }}
 table.vars tr.na td {{ color: {INK_SOFT}; font-style: italic; }}
 table.vars td.below {{ color: {STATUS_HEX['attention']}; font-weight: 650; }}
+/* The reason marker. A circled question mark, not an emoji: an emoji that
+   falls back renders as a literal "?" glyph box, indistinguishable from a
+   missing character, which is how this app once shipped a broken symbol. */
+table.vars .q {{
+  display: inline-block; margin-inline-start: .35rem; width: 14px; height: 14px;
+  line-height: 14px; text-align: center; border-radius: 50%;
+  background: {LINE}; color: {INK_SOFT}; font-size: .65rem; font-style: normal;
+  font-weight: 700; cursor: help; vertical-align: middle;
+}}
 </style>
 """
 
@@ -163,12 +203,16 @@ table.vars td.below {{ color: {STATUS_HEX['attention']}; font-weight: 650; }}
 
 T = {
     "title": ("مراقب المزرعة", "Farm Monitor"),
+    # The tagline says what the tool DOES FOR THE READER. The earlier one
+    # explained the provenance discipline instead - true, and the first thing
+    # a farmer read every morning before reaching an answer. That promise did
+    # not weaken; it moved to where it is actually exercised: the sensor and
+    # scale columns on every row, and the "About the data" page.
     "tagline": (
-        "مراقبة المحاصيل بالأقمار الصناعية. كل رقم يذكر المستشعر الذي جاء منه "
-        "والمقياس الذي قيس به؛ وما تعذّر قياسه يقول ذلك بدل أن يعرض رقمًا.",
-        "Satellite crop monitoring. Every figure names the sensor it came from "
-        "and the scale it was measured at; anything that could not be measured "
-        "says so rather than showing a number."),
+        "متابعة حقولك بالأقمار الصناعية: حال كل حقل، واحتياجه من الماء، "
+        "وأيّها يستحقّ زيارة اليوم.",
+        "Satellite tracking for your fields: how each one is doing, the water "
+        "it needs, and which is worth walking to today."),
     "fields": ("الحقول", "Fields"),
     "season": ("الموسم", "Season"),
     "crop": ("المحصول", "Crop"),
@@ -250,6 +294,69 @@ T = {
         "أشر بـ --fields إلى ملف الحقول لرسم الخريطة. القياسات أدناه لا تعتمد عليه.",
         "Point --fields at the field GeoJSON to draw the map. The measurements "
         "below do not depend on it."),
+
+    # ------------------------------------------------------------- search bar
+    "search": ("بحث", "Search"),
+    "search_ph": ("اسم الحقل أو المحصول", "Field name or crop"),
+    "filters": ("ترشيح", "Filters"),
+    "crop_filter": ("المحصول", "Crop"),
+    "status_filter": ("الحال", "Status"),
+    "date_basis": ("التاريخ حسب", "Date by"),
+    "d_greenup": ("الإنبات", "Green-up"),
+    "d_harvest": ("الحصاد", "Harvest"),
+    "d_last_seen": ("آخر رصد", "Last seen"),
+    "d_sown": ("الزراعة", "Sowing"),
+    "date_from": ("من", "From"),
+    "date_to": ("إلى", "To"),
+    "harvest_filter": ("الحصاد", "Harvest"),
+    "h_any": ("الكل", "Any"),
+    # Not "harvested / standing". Nothing measures "standing": a field cut last
+    # week and never written down would sit in it. The option says what is
+    # actually known - whether a harvest was reported.
+    "h_done": ("حصاد مُبلَّغ", "Harvest reported"),
+    "h_none": ("لا حصاد مُبلَّغ", "No harvest reported"),
+    "area_filter": ("ضمن الشكل المرسوم", "Inside the drawn shape"),
+    "area_hint": (
+        "ارسم مضلّعًا على الخريطة ثم فعّل هذا الخيار لقصر القائمة على الحقول "
+        "التي يقع مركزها داخله.",
+        "Draw a polygon on the map, then switch this on to narrow the list to "
+        "the fields whose centre falls inside it."),
+    "clear_filters": ("مسح الترشيح", "Clear filters"),
+    "results": ("{n} من {total}", "{n} of {total}"),
+    "no_match": ("لا حقل يطابق هذا الترشيح.", "No field matches these filters."),
+    "unknown_bucket": (
+        "مُنحّاة لأنّ القيمة غير مسجّلة، لا لأنّها لا تطابق:",
+        "Set aside because the value is not recorded, not because it does not "
+        "match:"),
+    "u_crop": ("المحصول", "crop"),
+    "u_greenup_date": ("تاريخ الإنبات", "green-up date"),
+    "u_harvest_date": ("تاريخ الحصاد", "harvest date"),
+    "u_last_seen": ("تاريخ آخر رصد", "last-seen date"),
+    "u_sown_date": ("تاريخ الزراعة", "sowing date"),
+    "u_harvest": ("حصاد مُبلَّغ", "a reported harvest"),
+    "u_geometry": ("حدود الحقل", "the field boundary"),
+
+    # ------------------------------------------------------------ field list
+    "field_list": ("الحقول", "Fields"),
+    "click_map": ("أو انقر حقلًا على الخريطة", "or click a field on the map"),
+    "selected": ("المختار", "Selected"),
+    "ha": ("هكتار", "ha"),
+    "est": ("تقديري", "est."),
+    "reported": ("مُبلَّغ", "reported"),
+
+    # ------------------------------------------------------------ about page
+    "page_about": ("عن البيانات", "About the data"),
+    "about_title": ("عن البيانات والطريقة", "About the data and the method"),
+    "about_sub": (
+        "كل ما يشرح كيف وُصل إلى رقم، في مكان واحد — خارج شاشة العمل.",
+        "Everything that explains how a number was arrived at, in one place - "
+        "off the working screen."),
+    "this_report": ("هذا التقرير", "This report"),
+    "generated": ("وقت التوليد", "Generated"),
+    "demo_heading": ("بيانات العرض التوضيحي", "Demonstration data"),
+    "demo_chip": ("عرض توضيحي", "DEMO"),
+    "method_link": ("الطريقة في صفحة «عن البيانات».",
+                    "The method is on the \"About the data\" page."),
 }
 
 
@@ -274,11 +381,48 @@ def _cls(ar: bool, extra: str = "") -> str:
     return f'class="fm {extra}{" rtl" if ar else ""}"'
 
 
-def hero(ar: bool) -> None:
+def topbar(ar: bool, tags=(), demo: bool = False) -> None:
+    """Identify the tool, state what it is for in one line, and stop.
+
+    `tags` are short facts about the loaded report - season, crop, field count.
+    `demo` adds the one label that must survive: engine output over invented
+    boundaries has to say so somewhere a reader will see it, and a four-word
+    chip does that without a paragraph.
+    """
+    chips = "".join(f'<span class="tag">{x}</span>' for x in tags)
+    if demo:
+        chips += f'<span class="tag demo">{t("demo_chip", ar)}</span>'
+    d = ' dir="rtl"' if ar else ""
     st.markdown(
-        f'<div class="hero fm{" rtl" if ar else ""}" {"dir=rtl" if ar else ""}>'
-        f'<h1>{"🌾 " if not ar else ""}{t("title", ar)}{" 🌾" if ar else ""}</h1>'
+        f'<div class="topbar fm{" rtl" if ar else ""}"{d}>'
+        f'<h1>{t("title", ar)}</h1>{chips}'
         f'<p>{t("tagline", ar)}</p></div>',
+        unsafe_allow_html=True)
+
+
+def result_count(n: int, total: int, ar: bool) -> None:
+    d = ' dir="rtl"' if ar else ""
+    st.markdown(f'<div class="count fm{" rtl" if ar else ""}"{d}>'
+                f'<b>{n}</b> / {total} — {t("field_list", ar)}</div>',
+                unsafe_allow_html=True)
+
+
+def field_row(name, status_key, status_label, tags=(), right="",
+              sub="", selected=False, ar=False) -> None:
+    """One row of the field list: colour, name, facts, and the reason for the
+    colour. The colour is the same one the map uses - a list and a map that
+    disagree are worse than either alone."""
+    accent = STATUS_HEX.get(status_key, STATUS_HEX["unmeasured"])
+    d = ' dir="rtl"' if ar else ""
+    chips = "".join(f'<span class="tag">{x}</span>' for x in tags if x)
+    st.markdown(
+        f'<div class="frow fm{" rtl" if ar else ""}{" sel" if selected else ""}"'
+        f' style="--accent:{accent}"{d}>'
+        f'<span class="chip" style="background:{accent}">{status_label}</span>'
+        f'<span class="nm">{name}</span>{chips}'
+        + (f'<span class="nd">{right}</span>' if right else "")
+        + (f'<div class="sub">{sub}</div>' if sub else "")
+        + "</div>",
         unsafe_allow_html=True)
 
 
@@ -355,11 +499,20 @@ def variables_table(rows, ar=False) -> None:
         t("reading", ar), t("sensor", ar), t("measured_at", ar)))
     body = []
     for r in rows:
-        na = str(r.get("value", "")).startswith("not available")
-        below = "BELOW" in str(r.get("verdict", ""))
+        value = str(r.get("value", ""))
+        na = value.startswith("not available") or value.startswith("غير متاح")
+        below = ("BELOW" in str(r.get("verdict", ""))
+                 or "دون العتبة" in str(r.get("verdict", "")))
+        # Why a row is unavailable rides ON the row, as a hover title and a
+        # marker, instead of in a paragraph underneath the table. It is the one
+        # piece of method text that changes what the reader does - wait for a
+        # clear scene, or go and look - so it stays at the point of use.
+        reason = str(r.get("reason", "") or "").replace('"', "&quot;")
+        mark = f'<span class="q" title="{reason}">?</span>' if reason else ""
         body.append(
-            f'<tr class="{"na" if na else ""}">'
-            f'<td>{r["variable"]}</td>'
+            f'<tr class="{"na" if na else ""}"'
+            + (f' title="{reason}"' if reason else "") + ">"
+            f'<td>{r["variable"]}{mark}</td>'
             f'<td class="v">{r["value"]}</td>'
             f'<td class="meta">{r["threshold"]}</td>'
             f'<td class="{"below" if below else "meta"}">{r["verdict"]}</td>'

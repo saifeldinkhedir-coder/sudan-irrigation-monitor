@@ -734,6 +734,26 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
             "Soil texture is a global model at 250 m, not a soil test.",
             "Field rankings are an ordering, not a calibrated health score.",
         ],
+        # The same list in Arabic. Emitted by the engine rather than translated
+        # in the app, for the reason every other vocabulary in this project is:
+        # matching generated English afterwards fails silently the moment the
+        # wording changes, and it fails by showing English to an Arabic reader.
+        # This is the list of things the tool does NOT claim - the last list
+        # that should reach a farmer in a language they may not read.
+        "limitations_ar": [
+            "الحرارة تُقاس عند 100 متر: في حقل دون هكتارين تقريبًا يخلط كل "
+            "بكسل المحصولَ بما حوله.",
+            "التغذية حالة كلوروفيل نسبية ما لم يوجد نموذج معايَر لهذا المحصول. "
+            "وللنيتروجين لا بصمة طيفية مباشرة؛ فإجهاد الماء والملوحة والمرض "
+            "والحرارة تخفض الكلوروفيل كذلك.",
+            "احتياج المحصول من الماء هو ما احتاجه المحصول. ولا شيء هنا يقيس "
+            "ما وصله فعلًا.",
+            "الإنتاجية مرفوضة دون معايرة حصاد محلية.",
+            "توقّعات الأيام السبعة نموذج عالمي بدقّة نحو 28 كم: طقس المنطقة "
+            "لا طقس الحقل. ولا يُرفع منها أي إنذار.",
+            "قوام التربة نموذج عالمي عند 250 مترًا، لا تحليل تربة.",
+            "ترتيب الحقول ترتيب، لا درجة صحّة معايَرة.",
+        ],
     }
 
     scheme_stats = {}

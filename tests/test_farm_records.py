@@ -266,3 +266,61 @@ class TestAdvisoryAcrossRecordShapes:
         a = fr.advisory(rec, lang="en")
         assert "stress" not in {i["key"] for i in a["items"]}
         assert "stress" in {w["key"] for w in a["withheld"]}
+
+
+FR = fr
+
+
+class TestTheAdvisorySpeaksOneLanguageAtATime:
+    """
+    The advisory writes its sentences in Arabic and then interpolated the
+    engine's English verdicts into them, so a farmer read "حالة الكلوروفيل
+    مقارنة بالمخطط: WITHIN SCHEME NORM" - the sentence in their language and
+    the finding in someone else's. The finding is the half that carries the
+    meaning.
+    """
+    def _rec(self, **nutrition):
+        return {"name": "F", "nutrition": {"status": "OK", **nutrition}}
+
+    def test_the_scheme_rank_is_arabic_in_the_arabic_advisory(self):
+        adv = FR.advisory(self._rec(claim_level="relative",
+                                    relative_condition="WITHIN SCHEME NORM"),
+                          lang="ar")
+        text = next(i["text"] for i in adv["items"] if i["key"] == "nutrition")
+        assert "ضمن معدّل المخطط" in text
+        assert "SCHEME NORM" not in text
+
+    def test_all_three_bands_are_covered(self):
+        for band in ("BELOW SCHEME NORM", "WITHIN SCHEME NORM",
+                     "ABOVE SCHEME NORM"):
+            adv = FR.advisory(self._rec(claim_level="relative",
+                                        relative_condition=band), lang="ar")
+            text = next(i["text"] for i in adv["items"]
+                        if i["key"] == "nutrition")
+            assert "NORM" not in text, band
+
+    def test_the_english_advisory_keeps_the_engine_token(self):
+        """English readers get the engine's own word, which is what they would
+        find in the JSON and in the logs."""
+        adv = FR.advisory(self._rec(claim_level="relative",
+                                    relative_condition="WITHIN SCHEME NORM"),
+                          lang="en")
+        text = next(i["text"] for i in adv["items"] if i["key"] == "nutrition")
+        assert "WITHIN SCHEME NORM" in text
+
+    def test_the_stress_reading_sentence_is_arabic(self):
+        rec = {"name": "F", "condition": {"context": {
+            "reading_status": "OK",
+            "reading": ("STRESS DESPITE RAIN - drought is a poor explanation, "
+                        "so supply, drainage, salinity or crop management are "
+                        "where to look."),
+            "rainfall_mm_last_14d": 3.0}}}
+        text = next(i["text"] for i in FR.advisory(rec, lang="ar")["items"]
+                    if i["key"] == "stress")
+        assert "إجهاد رغم المطر" in text
+        assert "drought" not in text
+
+    def test_an_unknown_verdict_appears_in_english_rather_than_vanishing(self):
+        """A new engine verdict must be visible and fixable, not blanked."""
+        assert FR._ar_reading("SOMETHING NEW - invented today") == \
+            "SOMETHING NEW - invented today"
