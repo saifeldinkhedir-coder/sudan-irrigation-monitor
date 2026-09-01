@@ -36,6 +36,13 @@ def main():
                         "See src/crops.py for the list.")
     p.add_argument("--no-series", action="store_true",
                    help="skip the per-scene time series (faster)")
+    p.add_argument("--restart", action="store_true",
+                   help="ignore any checkpoint from an interrupted run and "
+                        "start over. Without it, a run that died part way "
+                        "resumes - but only if the boundaries, season, crop "
+                        "and series setting are unchanged.")
+    p.add_argument("--no-resume", action="store_true",
+                   help="do not write a checkpoint at all")
     p.add_argument("--observations", default="observations.db",
                    help="the scouting database. It is the ONLY source that "
                         "can name a disease; without it the disease layer "
@@ -57,7 +64,8 @@ def main():
 
     agri_engine.analyse_farm(field_fc, a.season, a.out, crop=a.crop,
                              with_series=not a.no_series,
-                             observations_db=a.observations)
+                             observations_db=a.observations,
+                             resume=not a.no_resume, restart=a.restart)
 
 
 if __name__ == "__main__":

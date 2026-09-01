@@ -37,6 +37,13 @@ src/
                                irrigation requirement, GFS outlook, yield gate.
   rangeland.py                 rangeland productivity + timing, water points,
                                corridors — with the neutrality guard enforced.
+  registry.py                  the scheme hierarchy and roll-up.
+  runs.py                      the run history; the default comparison.
+  checkpoint.py                resuming a run that died part way.
+  backup.py                    the half that cannot be recomputed.
+  report_html.py               one self-contained file that prints.
+  vocab.py                     engine vocabulary, translated once.
+  weekly.py                    run, record, compare, export - one command.
   crops.py                     the crop library: parameters, aliases, and
                                the checks against a declared crop label.
   disease.py                   disease and pests as a three-rung ladder,
@@ -62,13 +69,15 @@ farmer_app/
   about.py                     the method, whole, off the working screen.
   changes.py                   what moved since the previous run.
   runner.py                    run the engine from the app, streamed.
+  auth.py                      a gate on the door; not an identity system.
+  onboarding.py                the first screen: three ways in.
 geolibre_plugin/
   plugin.json, forms/, bridge.py   Stage 4: manifest, field form, two-way bridge.
 geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
   canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
                                against what the engine requires, before a run.
-tests/                         629 tests; run with no Earth Engine.
+tests/                         749 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -685,3 +694,168 @@ forty-field scheme. The extent is measured against the native pixel and the
 decision is recorded in the report. A scheme spread over thirty kilometres spans
 several cells, and sharing one series across those would be inventing weather for
 the far end.
+
+## Running it as a system, not as a program
+
+Eleven changes, in the order they depend on each other.
+
+### The administrative hierarchy
+
+The platform held a flat list of polygons. Gezira is administered in nested
+units, and every question anybody with authority asks is asked at one of them.
+*How is block 14 doing* is not a question a flat list answers without a
+spreadsheet — and a tool that needs a spreadsheet for the commonest question in
+the institution gets replaced by the spreadsheet.
+
+The level names are **data, not fact**. The default follows the structure
+commonly described for Gezira — group, block, number, tenancy — and its own
+`name` field says **CONFIRM WITH THE SCHEME**: naming has changed with
+successive reorganisations, and the wrong label on the right structure looks
+correct in a report. A farm with no hierarchy is a valid deployment, not a
+degraded one.
+
+Aggregation will not average away an unmeasured field. Forty fields of which six
+could not be seen produce a number describing thirty-four, and presenting it as
+the block's is the map's grey problem one level up. Every unit carries its
+coverage; below the floor the mean is **withheld and the coverage reported in its
+place**. Fields that cannot be placed are listed, never bundled into an invented
+unit that then appears in reports as a real one.
+
+### The run history
+
+The change page used to ask the reader to **type the path** of an older report.
+That was not a rough edge; it was the interface admitting there was no history.
+Runs are now copied into `runs/<farm>/` and indexed, so the honest comparison —
+the previous run over the *same* farm — is what happens when nobody chooses.
+
+It refuses to compare two runs whose field names barely overlap: that produces a
+page full of "new" and "missing" fields which a reader takes as churn on their own
+land. A boundary file that changed between runs is flagged but not refused —
+fields do get redrawn, and a "change" in a redrawn field is partly the redrawing.
+
+Directories and JSON, deliberately. This runs on a laptop in a field office, gets
+copied to a USB stick, and must be readable in five years by somebody who has
+never heard of this program.
+
+### The weekly job
+
+A monitor that needs somebody to press a button is not a monitor. `src/weekly.py`
+runs, records, compares and exports in one command.
+
+It will **not** install a scheduled task. A tool that quietly arranges to run
+itself every week on a laptop it does not own has made a decision that was not
+its to make, and whoever inherits that laptop finds a job they cannot explain.
+`--show-schedule` prints the exact line for the platform; the operator runs it.
+
+The exit code is set honestly, because a scheduled job that fails silently is
+worse than none: everybody believes the farm is being watched, and it has not
+been watched since March.
+
+### Resumable runs
+
+A run over a scheme is thousands of round trips over an unreliable connection
+against a finite quota. It dies at field 3,700 of 4,000 and everything is lost,
+including the 3,699 that worked — so the person decides not to spend another
+three hours, and the tool that could have monitored the scheme does not, for
+reasons that have nothing to do with remote sensing.
+
+Each field's result is written as it arrives. Resuming is only safe while the
+question is unchanged, so the checkpoint fingerprints the boundaries, the season,
+the crop and the series setting; a mismatch **discards it and says so**, because
+merging would produce a report half one question and half another with nothing on
+its face to say which. The partial is written beside the report, never at it: a
+half-finished report at the report's own path is read *as* a report, and a farm
+whose worst fields came last looks fine.
+
+Also: ERA5-Land at 11 km was fetched once per field for identical answers. Now
+once per farm — but only while the farm measurably fits inside one cell.
+
+### The accuracy figure, on the front screen
+
+`agreement_summary` measures how often the satellite agreed with a person who
+walked out and looked. **No competitor shows this** — not because they are
+better, but because they do not collect it. A modest known number beats a total
+unknown claim.
+
+It could never accumulate. Observations were saved with no satellite side, so
+`satellite_agreement` was NULL on every row ever written and the figure was
+structurally stuck at zero while the screen said "no clear comparisons yet" for
+ever. Observations are now scored at save time, and an UNCLEAR says which side
+was missing. Unclear cases stay out of the rate: a forced verdict would corrupt
+the one number that describes this platform's own accuracy.
+
+### A file that prints, and needs no network
+
+Streamlit is a live websocket app — over a block office's connection, close to
+the worst possible architecture: blank until the socket comes up, dead when it
+drops. One HTML file with its data, styling and map inside it opens from a USB
+stick, survives being emailed, and needs no server. For a field office that is
+not a fallback; it is the better artefact.
+
+It prints because the Scheme runs on paper and the meetings where a block is
+decided have no laptop in them. Page breaks keep a field off two sheets, and
+every status carries a **mark as well as a colour** — on the photocopy that
+reaches the meeting, red and green are the same grey.
+
+The map is an SVG drawn from the coordinates with a scale bar, and it says it is
+**not imagery**: a drawing that looks like satellite imagery and is not would be
+worse than a plain drawing. No CDN, no webfont, no tiles, no analytics — pinned
+by a test, for a reason beyond convenience: a page that phones home tells a third
+party which tenancy is being looked at.
+
+### The first screen
+
+The app opened on a demonstration farm: not the reader's land, looking like a
+working product, with nothing on it saying how to reach their own fields.
+Somebody opening it for the first time had two choices — believe the demo was
+theirs, or close the tab.
+
+There are exactly three ways in, and naming all three is the whole feature: draw
+your fields, load a file, or see the demonstration. The demo option carries its
+own caveat in the same breath, not on a page the reader has to find.
+
+### Backup
+
+Every satellite figure here can be regenerated; a lost report costs an afternoon
+of compute. Thirty weighed harvests, thirty leaf-nitrogen samples and a season of
+scouting photographs cannot. They exist on one laptop, they took a season of
+somebody's labour, and they are what unlocks the gated figures.
+
+The archive covers that half and says plainly why it skips the other. It verifies
+against its own checksums — a truncated copy of a season of records looks exactly
+like a good one until the day it is needed — and it says, every time, that a copy
+on the same disk is a filing habit, not a backup.
+
+### A gate on the door
+
+`farmer_app/auth.py` is a password check with per-user farm scoping: PBKDF2 with
+a per-user salt, constant-time comparison, one message for both failure modes.
+
+It is **not an identity system**, and the login screen says so. No transport
+security, no meaningful session expiry, no audit trail, no second factor. It is
+correct behind a reverse proxy that terminates TLS, or on a machine only the
+operator can reach; it is not sufficient alone on a public address holding real
+tenancy records. **A security control that overstates itself is worse than none,
+because people stop taking the other precautions.**
+
+There is **no default password**. A deployment with no users file is OPEN and
+says so on every screen, because a default credential is a credential everybody
+has. A corrupt users file does not fall open.
+
+```bash
+python -m farmer_app.auth add ali --farms "block 14"
+```
+
+### A phone view
+
+The officer standing in a field has a phone, and neither the map nor the drawing
+tools work with a thumb on a five-inch screen in daylight. The compact view is a
+read-only list: worst first, the crop, the reading, and the first line of advice.
+
+### A label that falls back to its own key
+
+Not a feature — a defect this work produced and a test now prevents. `t()`
+returns the key when a label is missing, so a whole page of the sidebar rendered
+as `page_units` and `page_backup` in the browser while every test passed. A test
+now walks the app source for every `ui.t("…")` and asserts the key exists. The
+failure mode of a silent fallback is that nobody notices.

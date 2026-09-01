@@ -1209,3 +1209,45 @@ class TestTheRunner:
                        "import sys; print('quota exceeded'); sys.exit(3)"])
         assert out["returncode"] == 3
         assert "quota exceeded" in out["lines"]
+
+
+class TestEveryLabelTheAppAsksForExists:
+    """
+    A missing label does not raise - `t()` returns the key - so a whole page of
+    the sidebar rendered as `page_units` and `page_backup` in production while
+    every test passed. The failure mode of a silent fallback is that nobody
+    notices, so this walks the source and checks the keys are real.
+    """
+    def _keys_used(self):
+        import re
+        keys = set()
+        for name in ("app.py", "changes.py", "runner.py", "onboarding.py",
+                     "about.py", "record.py"):
+            path = os.path.join(os.path.dirname(__file__), "..", "farmer_app",
+                                name)
+            if not os.path.exists(path):
+                continue
+            src = open(path, encoding="utf-8").read()
+            # A comma after the closing quote, so a COMPUTED key such as
+            # ui.t("u_" + reason, ar) is not mistaken for a literal one.
+            keys |= set(re.findall(
+                r'ui\.t\(\s*["\']([a-z_0-9]+)["\']\s*,', src))
+        return keys
+
+    def test_no_label_falls_back_to_its_own_key(self):
+        used = self._keys_used()
+        assert used, "found no ui.t() calls at all - the scan is broken"
+        missing = sorted(k for k in used if k not in U.T)
+        assert not missing, f"labels used but never defined: {missing}"
+
+    def test_the_computed_unknown_labels_all_exist(self):
+        """These are built as "u_" + reason, so the scan above cannot see
+        them. Every reason the filter can produce needs a label."""
+        import search as S
+        reasons = ["crop", "harvest", "geometry"] + list(S.DATE_FIELDS)
+        missing = [r for r in reasons if ("u_" + r) not in U.T]
+        assert not missing, missing
+
+    def test_the_scan_would_catch_a_missing_one(self):
+        """A test that cannot fail is not a test."""
+        assert U.t("definitely_not_a_label", ar=True) == "definitely_not_a_label"

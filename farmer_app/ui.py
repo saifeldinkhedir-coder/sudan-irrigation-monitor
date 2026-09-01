@@ -462,6 +462,81 @@ T = {
         "الملف — لا حاجة إلى الطرفية.",
         "Open \"Run the analysis\" in the sidebar and run the engine on this "
         "file - no terminal needed."),
+
+    # ------------------------------------------------------- the deployment
+    "farm_name": ("اسم المزرعة", "Farm name"),
+    "not_your_farm": (
+        "هذه المزرعة ليست ضمن ما يسمح به حسابك.",
+        "This farm is not among those your account may see."),
+    "recorded_as": ("سُجّل في تاريخ التشغيلات باسم",
+                    "Recorded in the run history as"),
+    "not_recorded": ("لم يُسجَّل في تاريخ التشغيلات:",
+                     "Not recorded in the run history:"),
+
+    # ----------------------------------------------------------- onboarding
+    "welcome": ("ابدأ من هنا", "Start here"),
+    "welcome_sub": ("ثلاثة طرق للبدء. اختر واحدًا.", "Three ways in. Pick one."),
+    "start_draw": ("ارسم حقولي على الخريطة", "Draw my fields on the map"),
+    "start_draw_why": (
+        "لا تحتاج ملفًا ولا إحداثيات — ابحث عن مكانك وارسم الحدود على صورة "
+        "القمر.",
+        "No file and no coordinates needed - find your place and draw the "
+        "boundaries on the satellite image."),
+    "start_load": ("عندي ملف حقول", "I have a field file"),
+    "start_load_why": ("GeoJSON من مكتب المشروع أو من برنامج آخر.",
+                       "A GeoJSON from the scheme office or another program."),
+    "start_demo": ("أرني العرض التوضيحي", "Show me the demonstration"),
+    "start_demo_why": (
+        "قياسات أقمار حقيقية فوق حدود مخترعة، لترى شكل الأداة قبل أن ترسم "
+        "شيئًا. لا تخصّ مزرعة أحد.",
+        "Real satellite measurements over invented boundaries, so you can see "
+        "the shape of the tool before drawing anything. They belong to no "
+        "farm."),
+
+    # ------------------------------------------------------------- accuracy
+    "accuracy": ("اتّفاق القمر مع المُشاهِد", "Satellite vs observer"),
+    "accuracy_none": (
+        "لا مقارنات واضحة بعد. كل كشف ميداني تسجّله يضيف واحدة.",
+        "No clear comparisons yet. Every scouting record you save adds one."),
+    "accuracy_help": (
+        "الرقم الوحيد هنا الذي يقيس دقّة هذه الأداة بدل أن يدّعيها. والحالات "
+        "غير الواضحة تُستبعد منه ولا تُحشر فيه.",
+        "The only figure here that MEASURES this tool's accuracy rather than "
+        "claiming it. Unclear cases are excluded, never forced into it."),
+
+    # ---------------------------------------------------------- aggregation
+    "page_units": ("حسب الوحدة الإدارية", "By administrative unit"),
+    "roll_up_to": ("جمّع حسب", "Roll up to"),
+    "unit_withheld": ("حُجب المتوسّط", "mean withheld"),
+    "unplaced_fields": ("حقول خارج الهرم", "Fields outside the hierarchy"),
+    "hierarchy": ("الهرم الإداري", "Hierarchy"),
+    "coverage": ("التغطية", "coverage"),
+
+    # --------------------------------------------------------------- export
+    "export": ("تصدير", "Export"),
+    "export_html": ("نزّل ملف HTML مكتفيًا بذاته",
+                    "Download a self-contained HTML file"),
+    "export_why": (
+        "ملف واحد يحوي بياناته وخريطته: يُفتح بلا خادم وبلا إنترنت، ويُطبع، "
+        "ويُنسخ على ذاكرة، ويُفتح بعد سنوات بلا هذا البرنامج.",
+        "One file with its data and its map inside it: opens with no server "
+        "and no internet, prints, copies to a memory stick, and opens years "
+        "from now without this program."),
+
+    # --------------------------------------------------------------- backup
+    "page_backup": ("نسخة احتياطية", "Backup"),
+    "backup_what": ("ما يُفقد إن ضاع الجهاز", "Lost if this machine is"),
+    "backup_make": ("أنشئ النسخة", "Create the archive"),
+    "backup_verify": ("تحقّق من نسخة", "Verify an archive"),
+    "backup_done": ("كُتبت النسخة", "Archive written"),
+    "photographs": ("صور", "photographs"),
+
+    # --------------------------------------------------------------- mobile
+    "compact": ("عرض مختصر", "Compact view"),
+    "compact_help": (
+        "قائمة للقراءة على الهاتف: أي حقل، وماذا تفعل. بلا خريطة وبلا رسم.",
+        "A read-only list for a phone: which field, and what to do. No map, "
+        "no drawing."),
 }
 
 

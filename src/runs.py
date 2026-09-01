@@ -97,7 +97,22 @@ class RunStore:
         with open(report_path, encoding="utf-8") as fh:
             report = json.load(fh)
 
+        # The id is a second-resolution timestamp, so two runs started within
+        # the same second would collide and the second would silently replace
+        # the first. In production runs are minutes apart; in a test loop, and
+        # on the day somebody re-runs immediately after a failure, they are
+        # not - and losing a run from the history is losing the one thing here
+        # that cannot be recomputed.
         stamp = _stamp()
+        man = self._manifest(farm_dir)
+        taken = {r["id"] for r in man.get("runs", [])}
+        if stamp in taken or os.path.exists(os.path.join(farm_dir,
+                                                         f"{stamp}.json")):
+            n = 2
+            while f"{stamp}-{n}" in taken or os.path.exists(
+                    os.path.join(farm_dir, f"{stamp}-{n}.json")):
+                n += 1
+            stamp = f"{stamp}-{n}"
         stored = os.path.join(farm_dir, f"{stamp}.json")
         shutil.copyfile(report_path, stored)
 
@@ -118,7 +133,6 @@ class RunStore:
                               else None),
             "note": note,
         }
-        man = self._manifest(farm_dir)
         man["farm"] = farm
         man["runs"] = [r for r in man.get("runs", []) if r["id"] != stamp]
         man["runs"].append(entry)

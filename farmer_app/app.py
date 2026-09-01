@@ -49,18 +49,30 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import view as D
 import record as R
 import about as A
+import auth as AUTH
+import onboarding as ONB
 import search as S
 import changes as CG
 import runner as RUN
 import ui
 import fieldmap as FM
 import crops as CROPS
+import registry as REG
+import runs as RUNS
+import report_html as RH
+import backup as BK
+import nutrition_climate_ground as NCG
 
 
 def _args():
     p = argparse.ArgumentParser()
     p.add_argument("--report", default="farm_report.json")
     p.add_argument("--fields", default=None)
+    p.add_argument("--farm", default="farm",
+                   help="the name this farm is filed under in the run store")
+    p.add_argument("--hierarchy", default="flat",
+                   help="gezira | flat - see src/registry.py, and confirm the "
+                        "level names with the scheme before using them")
     known, _ = p.parse_known_args()
     return known
 
@@ -80,16 +92,55 @@ def main():
                             horizontal=True)
     ar = lang == "العربية"
 
-    report_path = st.sidebar.text_input("Farm report JSON", args.report)
-    fields_path = st.sidebar.text_input("Field polygons GeoJSON",
-                                        args.fields or "")
+    # The gate comes before anything is read off disk. With no users file the
+    # deployment is OPEN and says so on every screen; that is a distinct state
+    # from "nobody may enter", and both are honest.
+    user = AUTH.gate(ar=ar)
+
+    farm = st.sidebar.text_input(ui.t("farm_name", ar), args.farm)
+    if not AUTH.may_see(user, farm):
+        ui.topbar(ar)
+        ui.note(ui.t("not_your_farm", ar), "stop", ar)
+        st.stop()
+
+    report_path = st.sidebar.text_input("Farm report JSON",
+                                        st.session_state.get("_report",
+                                                             args.report))
+    fields_path = st.sidebar.text_input(
+        "Field polygons GeoJSON",
+        st.session_state.get("_fields", args.fields or ""))
+
+    # THE FIRST SCREEN. The app used to open on a demonstration farm: not the
+    # reader's land, looking like a working product, with nothing on it saying
+    # how to reach their own fields.
+    if ONB.needed(report_path, fields_path):
+        ui.topbar(ar)
+        choice = ONB.render(ar)
+        if choice.get("mode") == "demo":
+            st.session_state["_report"] = choice["report"]
+            st.session_state["_fields"] = choice["fields"]
+            st.rerun()
+        elif choice.get("mode") == "load":
+            st.session_state["_fields"] = choice["fields"]
+            st.rerun()
+        elif choice.get("mode") == "draw":
+            st.session_state["_draw"] = True
+            st.rerun()
+        if not st.session_state.get("_draw"):
+            st.stop()
 
     if not os.path.exists(report_path):
+        # Boundaries but no analysis yet: the next step is a run, not a lecture.
         ui.topbar(ar)
-        ui.note(ui.t("no_report", ar) + f" <code>{report_path}</code>",
-                "stop", ar)
-        st.code("python src/farm_cli.py --fields my_fields.geojson "
-                "--season 2022 --out farm_report.json", language="bash")
+        ui.note(ui.t("no_report", ar), "warn", ar)
+        season_year = 2022
+        fc = (_load(fields_path)
+              if fields_path and os.path.exists(fields_path) else None)
+        RUN.panel(fields_path if fc else None,
+                  len((fc or {}).get("features", [])), season_year,
+                  "default", ar)
+        if not fc:
+            _render_map({"fields": []}, None, ar)
         st.stop()
 
     report = _load(report_path)
@@ -108,7 +159,8 @@ def main():
 
     page = st.sidebar.radio(ui.t("page", ar),
                             [ui.t("page_fields", ar), ui.t("page_changes", ar),
-                             ui.t("page_run", ar), ui.t("page_record", ar),
+                             ui.t("page_units", ar), ui.t("page_run", ar),
+                             ui.t("page_record", ar), ui.t("page_backup", ar),
                              ui.t("page_about", ar)])
 
     field_fc = (_load(fields_path)
@@ -121,7 +173,13 @@ def main():
         A.render(report, ar)
         return
     if page == ui.t("page_changes", ar):
-        CG.render(report, ar)
+        CG.render(report, ar, farm=farm)
+        return
+    if page == ui.t("page_units", ar):
+        _render_units(report, field_fc, ar)
+        return
+    if page == ui.t("page_backup", ar):
+        _render_backup(ar)
         return
     if page == ui.t("page_run", ar):
         season_year = int(str(season.get("start", "2022"))[:4] or 2022)
@@ -129,11 +187,29 @@ def main():
                              len((field_fc or {}).get("features", [])),
                              season_year, CROPS.resolve(report.get("crop")), ar)
         if produced:
-            st.caption(ui.t("then_run", ar))
-            st.code(produced)
+            # A finished run goes straight into the history, so the comparison
+            # on the next run is automatic rather than something the reader has
+            # to arrange.
+            try:
+                entry = RUNS.RunStore().record(farm, produced,
+                                               fields_path=fields_path)
+                st.success(f'{ui.t("recorded_as", ar)} {entry["id"]}')
+            except Exception as e:                       # noqa: BLE001
+                st.warning(f'{ui.t("not_recorded", ar)} {e}')
+            st.session_state["_report"] = produced
         return
 
     index = S.field_index(report, field_fc, ar=ar)
+
+    # The compact view is the whole fields page for somebody on a phone: which
+    # field, and what to do. No map and no drawing, because neither works with
+    # a thumb on a 5-inch screen in daylight.
+    if st.sidebar.toggle(ui.t("compact", ar), value=False,
+                         help=ui.t("compact_help", ar)):
+        _render_compact(report, index, ar)
+        return
+
+    _render_accuracy(ar)
 
     counts = S.status_counts(index)
     ui.stats([
@@ -189,6 +265,8 @@ def main():
                 if f.get("name") == chosen), None)
     if rec is None:
         return
+    _render_export(report, field_fc, ar)
+
     ui.section(f'{ui.t("field_detail", ar)} — {chosen}', "", ar)
     _render_crop(rec, ar)
     _render_field(rec, ar)
@@ -472,6 +550,161 @@ def _render_field(rec, ar):
             with st.expander(ui.t("not_said", ar)):
                 for w in adv["withheld"]:
                     st.caption(f"**{w['key']}** — {w['reason']}")
+
+
+def _render_units(report, field_fc, ar):
+    """
+    The farm rolled up to an administrative level.
+
+    This is the question anybody with authority over more than one field asks
+    first, and a flat list cannot answer it without a spreadsheet.
+    """
+    args = _args()
+    h = REG.preset(st.sidebar.selectbox(
+        ui.t("hierarchy", ar), list(REG.PRESETS),
+        index=list(REG.PRESETS).index(args.hierarchy)
+        if args.hierarchy in REG.PRESETS else 0))
+    ui.section(ui.t("page_units", ar), h.name, ar)
+
+    if h.depth() == 0:
+        ui.note(("لا هرم إداري في هذا التشغيل. اختر «gezira» إن كانت حقولك "
+                 "تحمل المجموعة والقسم والنمرة والحواشة." if ar else
+                 "This deployment has no hierarchy. Choose \"gezira\" if your "
+                 "fields carry group, block, number and tenancy."), "", ar)
+        return
+
+    props_by = {(f.get("properties") or {}).get("name", ""):
+                (f.get("properties") or {})
+                for f in (field_fc or {}).get("features", [])}
+    level = st.selectbox(ui.t("roll_up_to", ar), h.keys,
+                         format_func=lambda k: h.label(k, ar))
+    agg = REG.aggregate(report, h, level, props_by)
+
+    if not agg["units"] and not agg["unplaced"]:
+        ui.note(ui.t("no_match", ar), "warn", ar)
+        return
+
+    for u in agg["units"]:
+        tags = [f'{u["n_fields"]} {ui.t("fields", ar)}',
+                f'{ui.t("coverage", ar)} {u["coverage"]:.0%}']
+        if u["n_unmeasured"]:
+            tags.append(f'{u["n_unmeasured"]} {D.label(D.STATUS_LABEL, "unmeasured", ar)}')
+        status = ("attention" if u["n_attention"] else
+                  "unmeasured" if u["withheld"] else "ok")
+        right = (ui.t("unit_withheld", ar) if u["withheld"]
+                 else f'NDVI {u["mean_vigour"]:.3f}')
+        # A withheld mean says WHY, in place of the number. Forty fields of
+        # which six could not be seen produce a figure describing thirty-four.
+        ui.field_row(u["key"], status,
+                     f'{u["n_attention"]} {D.label(D.STATUS_LABEL, "attention", ar)}',
+                     tags, right=right,
+                     sub=(u.get("reason_ar") if ar else u.get("reason", "")),
+                     ar=ar)
+
+    if agg["unplaced"]:
+        ui.section(ui.t("unplaced_fields", ar), "", ar)
+        for u in agg["unplaced"]:
+            st.caption(f'{u["name"]} — {u["reason"]}')
+
+    with st.expander(ui.t("why_q", ar)):
+        st.caption(agg["basis"])
+
+
+def _render_backup(ar):
+    """What is lost if this machine is, and one file that carries it away."""
+    ui.section(ui.t("page_backup", ar), "", ar)
+    s = BK.survey(".")
+    ui.note(s["note_ar"] if ar else s["note"], "", ar)
+
+    rows = []
+    for f in s["found"]:
+        n = sum(v for v in (f.get("rows") or {}).values()
+                if isinstance(v, int))
+        rows.append((f["file"], f'{n} rows', f'{f["bytes"] // 1024} KB'))
+    ui.stats([(ui.t("backup_what", ar), len(s["found"]), None),
+              (ui.t("photographs", ar), s["n_photographs"],
+               f'{s["photograph_bytes"] // 1024} KB')])
+    for name, n, size in rows:
+        ui.field_row(name, "ok", n, [size], ar=ar)
+    for m in s["missing"]:
+        ui.field_row(m["file"], "unmeasured", "—", [], sub=m["why"], ar=ar)
+
+    dest = st.text_input("ZIP", "farm_backup.zip")
+    if st.button(ui.t("backup_make", ar), type="primary"):
+        made = BK.create(dest)
+        st.success(f'{ui.t("backup_done", ar)}: {dest} '
+                   f'({made["bytes"] // 1024} KB, {made["n_files"]})')
+        # Verified immediately. An untested backup is a belief, not a backup.
+        v = BK.verify(dest)
+        if v["ok"]:
+            st.caption(f'✓ {v["n_files"]}')
+        else:
+            st.error(v["reason"])
+        ui.note(made["warning_ar"] if ar else made["warning"], "warn", ar)
+
+    check = st.text_input(ui.t("backup_verify", ar), "")
+    if check:
+        v = BK.verify(check)
+        (st.success if v["ok"] else st.error)(
+            f'{v.get("n_files", 0)} · {v.get("reason") or "ok"}')
+
+
+def _render_compact(report, index, ar):
+    """The phone view: which field, and what to do.
+
+    No map and no drawing - neither works with a thumb on a five-inch screen in
+    daylight, and the officer standing in a field does not need them. They need
+    the order and the reason.
+    """
+    ranked = sorted(index, key=lambda r: (STATUS_RANK.get(r["status"], 9),
+                                          r["vigour"] if r["vigour"] is not None
+                                          else 9))
+    counts = S.status_counts(index)
+    ui.stats([(D.label(D.STATUS_LABEL, k, ar), counts[k], None)
+              for k in ("attention", "watch", "unmeasured")])
+    for r in ranked:
+        rec = next((f for f in report.get("fields", [])
+                    if f.get("name") == r["name"]), {})
+        adv = rec.get("advisory" if ar else "advisory_en") or {}
+        first = (adv.get("items") or [{}])[0].get("text", "")
+        ui.field_row(r["name"], r["status"],
+                     D.label(D.STATUS_LABEL, r["status"], ar),
+                     [r["crop"]] if r.get("crop") else [],
+                     right=("NDVI %.3f" % r["vigour"])
+                     if r["vigour"] is not None else "—",
+                     sub=first or r["why"], ar=ar)
+
+
+def _render_accuracy(ar):
+    """
+    The only figure here that MEASURES this tool's accuracy rather than
+    claiming it. It is put on the working screen because no competitor shows
+    one - not because they are better, but because they do not collect it.
+    """
+    try:
+        store = NCG.ObservationStore("observations.db")
+    except Exception:                                    # noqa: BLE001
+        return
+    try:
+        s = store.agreement_summary()
+    finally:
+        store.close()
+    if s.get("available"):
+        ui.stats([(ui.t("accuracy", ar),
+                   f'{round(100 * s["agreement_rate"])}%',
+                   f'{s["total"]} · {s["unclear"]} '
+                   + ("غير واضحة" if ar else "unclear"))])
+    else:
+        ui.note(ui.t("accuracy_none", ar), "", ar)
+
+
+def _render_export(report, field_fc, ar):
+    """One file with its data and its map inside it."""
+    ui.section(ui.t("export", ar), "", ar)
+    ui.note(ui.t("export_why", ar), "", ar)
+    doc = RH.build(report, field_fc, ar=ar)
+    st.download_button(ui.t("export_html", ar), data=doc.encode("utf-8"),
+                       file_name="farm_report.html", mime="text/html")
 
 
 def _render_crop(rec, ar):

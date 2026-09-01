@@ -2,12 +2,19 @@
 "What changed since last time" - the page that makes this a monitor.
 
 Every report before this was a season summary. You could read one and know how
-the farm stood; you could not read two and know what had moved. That is the
-difference between a report and a monitor, and it is the difference between a
-tool somebody opens once and a tool somebody opens on Sunday mornings.
+the farm stood; you could not read two and know what had moved.
 
-The verdict this page exists to get right is that a decline past the NDVI peak
-is a crop ripening, not a crop failing. See src/change.py.
+WHAT CHANGED IN THIS PAGE ITSELF
+--------------------------------
+It used to ask the reader to TYPE THE PATH of an older report. With a run store
+behind it, the honest comparison - the previous run over the SAME farm - is
+simply what happens when nobody chooses anything. That is the point of having a
+history: it makes the right comparison the default and the wrong one the effort.
+
+THE VERDICT THIS PAGE EXISTS TO GET RIGHT
+-----------------------------------------
+A decline past the NDVI peak is a crop ripening, not a crop failing. See
+src/change.py.
 """
 
 from __future__ import annotations
@@ -20,6 +27,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import change as CH
+import runs as RUNS
 
 import ui
 import view as D
@@ -34,20 +42,54 @@ VERDICT = {
 }
 
 
-def render(current: dict, ar: bool = False) -> None:
+def render(current: dict, ar: bool = False, farm: str = "",
+           runs_root: str = "runs") -> None:
     ui.section(ui.t("changes_title", ar), "", ar)
 
-    prev_path = st.text_input(ui.t("previous_report", ar), "",
-                              placeholder="farm_report_2022-10-01.json")
-    if not prev_path:
-        ui.note(ui.t("changes_how", ar), "", ar)
-        return
-    if not os.path.exists(prev_path):
-        ui.note(ui.t("no_report", ar) + f" <code>{prev_path}</code>", "stop", ar)
-        return
+    store = RUNS.RunStore(runs_root)
+    history = store.runs(farm) if farm else []
+    previous = None
 
-    with open(prev_path, encoding="utf-8") as fh:
-        previous = json.load(fh)
+    if len(history) >= 2:
+        # The default is the run before the latest. A reader who wants a
+        # different one can pick it; a reader who picks nothing gets the
+        # honest comparison rather than none.
+        labels = {r["id"]: f'{r["id"]}  ·  {r.get("n_fields", "?")} '
+                           f'{ui.t("fields", ar)}' for r in history[:-1]}
+        chosen = st.selectbox(ui.t("previous_report", ar),
+                              list(labels)[::-1],
+                              format_func=lambda k: labels[k])
+        previous = store.load(farm, chosen)
+        pair_a = next(r for r in history if r["id"] == chosen)
+        check = store.comparable(pair_a, history[-1])
+        if not check["ok"]:
+            ui.note(check["reason_ar"] if ar else check["reason"], "stop", ar)
+            return
+        if check.get("boundaries_changed"):
+            # Not a reason to refuse - fields do get redrawn - but a "change"
+            # in a redrawn field is partly the redrawing.
+            ui.note(("تغيّر ملف الحدود بين التشغيلين، فجزء من أي تغيّر هنا هو "
+                     "إعادة الرسم نفسها." if ar else
+                     "The boundary file changed between these runs, so part of "
+                     "any change here is the redrawing itself."), "warn", ar)
+    else:
+        # No history yet: fall back to a path, and say why the page is asking.
+        ui.note(("لا سجلّ تشغيلات لهذه المزرعة بعد. شغّل المحرّك من صفحة "
+                 "«تشغيل التحليل» مرّتين وستصير المقارنة تلقائية — أو أشر إلى "
+                 "تقرير أقدم يدويًّا." if ar else
+                 "No run history for this farm yet. Run the engine twice from "
+                 "\"Run the analysis\" and the comparison becomes automatic - "
+                 "or point at an older report by hand."), "", ar)
+        manual = st.text_input(ui.t("previous_report", ar), "",
+                               placeholder="farm_report_2022-10-01.json")
+        if not manual:
+            return
+        if not os.path.exists(manual):
+            ui.note(ui.t("no_report", ar) + f" <code>{manual}</code>",
+                    "stop", ar)
+            return
+        with open(manual, encoding="utf-8") as fh:
+            previous = json.load(fh)
 
     cmp = CH.compare(previous, current)
     ui.note(CH.headline(cmp, ar), "", ar)
@@ -61,7 +103,7 @@ def render(current: dict, ar: bool = False) -> None:
     ])
 
     # Crossing a threshold is a different event from moving, and it is the one
-    # that changes what a farmer does today.
+    # that changes what somebody does today.
     if cmp["crossings"]:
         ui.section(ui.t("crossings", ar), "", ar)
         for c in cmp["crossings"]:
@@ -80,8 +122,7 @@ def render(current: dict, ar: bool = False) -> None:
                         f' · {c["gap_days"]} {ui.t("days", ar)}')
         if c.get("threshold") is not None:
             tags.append(f'± {c["threshold"]}')
-        delta = ("—" if c.get("delta") is None
-                 else f'{c["delta"]:+.3f} NDVI')
+        delta = "—" if c.get("delta") is None else f'{c["delta"]:+.3f} NDVI'
         sub = (c.get("reason_ar" if ar else "reason")
                or (c.get("judged_against_ar") if ar
                    else c.get("judged_against")) or "")
@@ -99,6 +140,6 @@ def render(current: dict, ar: bool = False) -> None:
             ui.note(ui.t("gone_fields", ar) + ", ".join(cmp["dropped_fields"]),
                     "warn", ar)
 
-    # The two refusals this page rests on, inline: they change how every row
-    # above is read, which is the test for staying on the working screen.
+    # The two refusals this page rests on stay inline: they change how every
+    # row above is read, which is the test for staying on the working screen.
     ui.note(cmp["note_ar"] if ar else cmp["note"], "", ar)

@@ -63,6 +63,7 @@ from typing import Optional
 import decision_logic as dl
 import crops as cr
 import disease as dz
+import checkpoint as cp
 
 try:
     import ee
@@ -861,7 +862,8 @@ def rank_fields(field_records: list) -> dict:
 
 def analyse_farm(field_fc: dict, season: int, out_json: str,
                  crop: str = "default", with_series: bool = True,
-                 observations_db: Optional[str] = None) -> dict:
+                 observations_db: Optional[str] = None,
+                 resume: bool = True, restart: bool = False) -> dict:
     """
     Full farm report from field polygons alone. No canal geometry, no command
     areas, no scheme.
@@ -908,6 +910,17 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
         print("\nNo fields supplied. There is nothing to report on, and no "
               "field boundary can honestly be invented.")
         return {"fields": [], "n_fields": 0}
+
+    # A run over a scheme is thousands of round trips over a connection that
+    # is not reliable. Losing 3,699 successful fields because the 3,700th timed
+    # out is how a tool that could monitor the scheme ends up not monitoring
+    # it, for reasons that have nothing to do with remote sensing.
+    check = cp.Checkpoint(out_json,
+                          cp.fingerprint(field_fc, season, crop, with_series),
+                          enabled=resume)
+    already = check.resume(restart=restart)
+    if check.note:
+        print(f"Checkpoint: {check.note}")
 
     all_geom = ee.FeatureCollection(
         [ee.Feature(ee.Geometry(f["geometry"])) for f in feats]).geometry()
@@ -1020,6 +1033,13 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
 
     for i, f in enumerate(feats, 1):
         name = f.get("properties", {}).get("name", f"field_{i}")
+        # Already analysed on an earlier attempt at the SAME question - the
+        # fingerprint has been checked, so this is the field's own result and
+        # not a stale one from a different run.
+        if name in already:
+            results["fields"].append(already[name])
+            print(f"\n[{i}/{len(feats)}] {name}  (from the checkpoint)")
+            continue
         geom = ee.Geometry(f["geometry"])
         print(f"\n[{i}/{len(feats)}] {name}")
 
@@ -1140,8 +1160,10 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
             rec["advisory_en"] = fr.advisory(rec, canal_record=None, lang="en")
 
         results["fields"].append(rec)
+        check.add(rec)
 
     results["ranking"] = rank_fields(results["fields"])
+    results["checkpoint"] = check.describe()
     # What is actually standing on this farm, and where each label came from.
     # A run that silently applied one crop to everything looked identical to a
     # run over a genuinely single-crop farm.
@@ -1169,5 +1191,9 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
 
     with open(out_json, "w", encoding="utf-8") as fh:
         json.dump(results, fh, indent=2, ensure_ascii=False)
+    # Only now. A half-finished report sitting at the report's own path would
+    # be read AS a report - by a person, by the run store, by the change page -
+    # and a farm whose worst fields happened to come last would look fine.
+    check.done()
     print(f"\nWritten to {out_json}")
     return results
