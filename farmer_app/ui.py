@@ -357,6 +357,111 @@ T = {
     "demo_chip": ("عرض توضيحي", "DEMO"),
     "method_link": ("الطريقة في صفحة «عن البيانات».",
                     "The method is on the \"About the data\" page."),
+
+    # ------------------------------------------------------------------ crop
+    "crop_of_field": ("محصول هذا الحقل", "This field's crop"),
+    "crop_generic": (
+        "حُلّلت بمعاملات عامّة لأنّ المحصول غير معروف في المكتبة — وكل رقم "
+        "يخصّ المحصول أدناه يقوم عليها.",
+        "Analysed with generic parameters because the crop is not in the "
+        "library - every crop-specific figure below rests on them."),
+    "crop_per_field_help": (
+        "هذا محصول التشغيل الافتراضي. وأي حقل يحمل خاصّية crop خاصّة به "
+        "تُقدَّم عليه.",
+        "This is the run's default. Any field carrying its own `crop` "
+        "property overrides it."),
+
+    # --------------------------------------------------------------- disease
+    "page_disease": ("الأمراض والآفات", "Disease and pests"),
+    "disease_title": ("الأمراض والآفات", "Disease and pests"),
+    "anomaly_title": ("شذوذ داخل الحقل", "Within-field anomaly"),
+    "weather_windows": ("نوافذ الطقس", "Weather windows"),
+    "no_weather_model": (
+        "لا نموذج طقس يتنبّأ بها — تُرصد بالكشف الميداني وحده:",
+        "Nothing here can predict these - ground scouting only:"),
+    "scout_for": ("ابحث عن:", "Scout for:"),
+    "refusal_title": ("ما لا تفعله هذه الطبقة", "What this layer will not do"),
+    "risk_days": ("{d} من {n} يومًا مواتية", "{d} of {n} days favourable"),
+    "disease_ladder": (
+        "بلاغ ميداني ← شذوذ داخل الحقل ← نافذة طقس. والأعلى وحده يسمّي مرضًا.",
+        "Field report → within-field anomaly → weather window. Only the top "
+        "rung names a disease."),
+
+    # -------------------------------------------------------------- scouting
+    "scouting": ("كشف ميداني", "Field scouting"),
+    "what_found": ("ماذا وجدت؟", "What did you find?"),
+    "observed_on": ("تاريخ المشاهدة", "Observed on"),
+    "observer": ("المُبلِّغ", "Observer"),
+    "record_finding": ("سجّل المشاهدة", "Record the finding"),
+    "no_problems_for_crop": (
+        "لا آفات مسجّلة لهذا المحصول في المكتبة. ولا تُعرض آفات محصول آخر.",
+        "No problems are registered for this crop. Another crop's are not "
+        "offered."),
+
+    # --------------------------------------------------------------- changes
+    "page_changes": ("ما تغيّر", "What changed"),
+    "changes_title": ("ما تغيّر منذ التشغيل السابق",
+                      "What changed since the previous run"),
+    "previous_report": ("تقرير التشغيل السابق", "Previous report file"),
+    "changes_how": (
+        "أشر إلى ملف تقرير أقدم لهذه المزرعة لمقارنته بالحالي.",
+        "Point at an older report for this farm to compare it with the "
+        "current one."),
+    "v_declined": ("تراجعت قبل الذروة", "Declined before peak"),
+    "v_improved": ("تحسّنت", "Improved"),
+    "v_senescence": ("نضج متوقّع", "Ripening as expected"),
+    "v_incomparable": ("غير قابلة للمقارنة", "Not comparable"),
+    "crossings": ("عبرت عتبتها", "Crossed their threshold"),
+    "field_by_field": ("حقلًا حقلًا", "Field by field"),
+    "appeared_vanished": ("ظهرت واختفت", "Appeared and vanished"),
+    "new_fields": ("جديدة في هذا التشغيل: ", "New in this run: "),
+    "gone_fields": ("غابت عن هذا التشغيل: ", "Missing from this run: "),
+    "days": ("يومًا", "days"),
+
+    # ------------------------------------------------------------- the runner
+    "page_run": ("تشغيل التحليل", "Run the analysis"),
+    "run_engine": ("شغّل المحرّك على حقولك", "Run the engine on your fields"),
+    "run_needs_fields": (
+        "أشر أولًا إلى ملف حقول موجود في الشريط الجانبي، أو ارسم حقولك "
+        "واحفظها.",
+        "Point at an existing field file in the sidebar first, or draw your "
+        "fields and save them."),
+    "out_file": ("ملف الخرج", "Output file"),
+    "with_series": ("مع السلسلة الزمنية", "With the time series"),
+    "with_series_help": (
+        "السلسلة المؤرّخة لازمة للتكامل الحقيقي للماء وللإنبات وطول الموسم. "
+        "وإطفاؤها أسرع ويُسقط الثلاثة.",
+        "The dated series is what the true water integral, the green-up date "
+        "and the season length are computed from. Switching it off is faster "
+        "and drops all three."),
+    "run_estimate": (
+        "{n} حقلًا — قدّر نحو {m} دقيقة. والتقدير تقريبي.",
+        "{n} fields - allow about {m} minutes. The estimate is rough."),
+    "run_now": ("شغّل الآن", "Run now"),
+    "running": ("يعمل — لا تغلق الصفحة", "Running - leave this page open"),
+    "run_done": ("انتهى. التقرير في", "Finished. The report is at"),
+    "run_failed": ("فشل التشغيل (رمز {code}).", "The run failed (code {code})."),
+    "run_output": ("مخرجات المحرّك", "Engine output"),
+
+    # ------------------------------------------------------- the field editor
+    "name_your_fields": ("سمِّ حقولك", "Name your fields"),
+    "editor_help": (
+        "اسم الحقل ومحصوله وتاريخ زراعته تُحفظ مع الحدود، وهي ما يبحث به "
+        "التطبيق لاحقًا. و«حقل 1» ليس اسمًا يبحث عنه أحد.",
+        "The name, crop and sowing date are saved with the boundary and are "
+        "what the search later works on. \"Field 1\" is not a name anybody "
+        "searches for."),
+    "col_name": ("الاسم", "Name"),
+    "col_crop": ("المحصول", "Crop"),
+    "col_sown": ("تاريخ الزراعة", "Sowing date"),
+    "col_tenancy": ("رقم الحواشة", "Tenancy no."),
+    "col_area": ("المساحة (هكتار)", "Area (ha)"),
+    "heat_over": ("إجهاد حراري فوق", "heat stress above"),
+    "run_from_app": (
+        "افتح صفحة «تشغيل التحليل» من الشريط الجانبي وشغّل المحرّك على هذا "
+        "الملف — لا حاجة إلى الطرفية.",
+        "Open \"Run the analysis\" in the sidebar and run the engine on this "
+        "file - no terminal needed."),
 }
 
 

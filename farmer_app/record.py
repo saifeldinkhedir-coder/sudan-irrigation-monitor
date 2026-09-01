@@ -34,6 +34,8 @@ from datetime import datetime, timezone
 
 import streamlit as st
 
+import view as D
+
 
 OBS_DIR = "observations"
 CANOPY = ["", "healthy", "patchy", "yellowing", "wilting"]
@@ -109,6 +111,30 @@ def _scouting(names, db_dir) -> None:
             soil = c3.selectbox("Soil surface", SOIL_SURFACE)
             outlet = c4.selectbox("Outlet condition", OUTLET)
 
+            # WHICH problem, not merely whether there was one.
+            #
+            # A "disease signs" tick cannot lift the disease ladder past an
+            # unnamed anomaly, because naming is precisely the thing the
+            # satellite cannot do and a person can. The options come from the
+            # selected crop's own registry: offering sorghum's anthracnose for
+            # a wheat field invites somebody to record a disease that crop
+            # does not get, and a wrong name in the ground-truth store is
+            # worse than no name at all - it is the data everything else is
+            # checked against.
+            options = D.crop_problem_options(crop)
+            if options:
+                problem = st.selectbox(
+                    "Problem found (this is what names a disease)",
+                    [""] + [k for k, _l in options],
+                    format_func=lambda k: dict(options).get(k, "— nothing —"),
+                    help="Leave empty unless you SAW it. The satellite cannot "
+                         "name a disease; this field is the only thing that "
+                         "can.")
+            else:
+                problem = ""
+                st.caption(f"No problems are registered for {crop}. Another "
+                           "crop's are deliberately not offered.")
+
             c5, c6, c7 = st.columns(3)
             weeds = c5.checkbox("Weeds present")
             pests = c6.checkbox("Pest damage")
@@ -137,12 +163,16 @@ def _scouting(names, db_dir) -> None:
                     lat=lat, lon=lon, photo_path=path, observer=observer,
                     crop=crop, growth_stage=stage, canopy_condition=canopy,
                     weeds_present=weeds, weed_cover_pct=weed_pct,
-                    pest_damage=pests, disease_signs=disease,
+                    pest_damage=pests, disease_signs=disease, problem=problem,
                     soil_surface=soil, salinity_signs=salinity,
                     water_reached_field=water_reached,
                     days_since_irrigation=int(days_since),
                     outlet_condition=outlet, notes=notes)
                 store.add(obs)
+                if problem:
+                    st.info("This names a problem, so the next engine run will "
+                            "report this field as REPORTED rather than as an "
+                            "unnamed anomaly.")
                 st.success(f"Saved observation {obs.obs_id}"
                            + ("" if path else
                               " — with no photograph. A record without an image "

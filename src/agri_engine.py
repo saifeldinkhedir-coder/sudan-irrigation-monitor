@@ -55,11 +55,14 @@ measured the same way on the same dates.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import decision_logic as dl
+import crops as cr
+import disease as dz
 
 try:
     import ee
@@ -511,6 +514,202 @@ def health_series(field_geom, start: str, end: str) -> dict:
         return {"status": "NOT AVAILABLE", "reason": str(e)[:140]}
 
 
+# ==============================================================================
+# WITHIN-FIELD ANOMALY - where in this field to walk
+# ==============================================================================
+
+def anomaly_scan(field_geom, field_geometry_dict: Optional[dict],
+                 start: str, end: str) -> dict:
+    """
+    Find the part of a field that is unlike the rest of the field.
+
+    THE REFERENCE IS THE FIELD ITSELF. Everything else in this engine compares
+    a field with its neighbourhood; this compares a field with its own
+    interior, which answers a different question - not "is this field worse
+    than its neighbours" but "is one part of it worse than the rest". A
+    uniformly poor field produces nothing here, and that is correct.
+
+    It returns a size and a direction and NAMES NO CAUSE. Disease, a blocked
+    outlet, salinity, pest damage and a badly set seed drill all look like this
+    at 10 m, and the bands cannot separate them. See src/disease.py.
+    """
+    try:
+        col = s2_collection(field_geom, start, end)
+        if col.size().getInfo() < MIN_S2_SCENES:
+            return {"status": "NOT AVAILABLE",
+                    "reason": f"fewer than {MIN_S2_SCENES} usable Sentinel-2 "
+                              "scenes over this field"}
+        ndvi = col.median().normalizedDifference(["B8", "B4"]).rename("NDVI")
+
+        pct = ndvi.reduceRegion(
+            reducer=ee.Reducer.percentile([16, 50, 84]), geometry=field_geom,
+            scale=SCALE_M, maxPixels=1e9, bestEffort=True).getInfo() or {}
+        p16, p50, p84 = (pct.get("NDVI_p16"), pct.get("NDVI_p50"),
+                         pct.get("NDVI_p84"))
+
+        thr = dz.anomaly_threshold(p16, p50, p84)
+        if thr["status"] != "OK":
+            return {**thr, "distribution": {"p16": p16, "p50": p50,
+                                            "p84": p84}}
+
+        mask = ndvi.lt(thr["threshold"]).selfMask() if hasattr(ndvi, "selfMask") \
+            else ndvi.lt(thr["threshold"])
+        area_m2 = (ee.Image.pixelArea().updateMask(mask).reduceRegion(
+            reducer=ee.Reducer.sum(), geometry=field_geom, scale=SCALE_M,
+            maxPixels=1e9, bestEffort=True).getInfo() or {}).get("area")
+        ll = (ee.Image.pixelLonLat().updateMask(mask).reduceRegion(
+            reducer=ee.Reducer.mean(), geometry=field_geom, scale=SCALE_M,
+            maxPixels=1e9, bestEffort=True).getInfo() or {})
+
+        field_m2 = dl.geojson_area_m2(field_geometry_dict)
+        centre = dl.geojson_centroid(field_geometry_dict)
+        patch = ([ll.get("longitude"), ll.get("latitude")]
+                 if ll.get("longitude") is not None else None)
+
+        out = dz.anomaly_patch(
+            (area_m2 / 10000.0) if area_m2 else None,
+            (field_m2 / 10000.0) if field_m2 else None,
+            centre, patch)
+        out["threshold"] = thr["threshold"]
+        out["distribution"] = {"p16": p16, "p50": p50, "p84": p84}
+        out["robust_sigma"] = thr["robust_sigma"]
+        out["basis"] = thr["basis"]
+        out["sensor"] = "Sentinel-2 median NDVI"
+        out["scale_m"] = SCALE_M
+        return out
+    except Exception as e:
+        return {"status": "NOT AVAILABLE", "reason": str(e)[:140]}
+
+
+def disease_layer(field_geom, start: str, end: str, crop: str,
+                  anomaly: Optional[dict] = None,
+                  scouting: Optional[list] = None, agro=None,
+                  weather: Optional[dict] = None,
+                  rain: Optional[list] = None) -> dict:
+    """
+    The three-rung disease and pest layer for one field.
+
+    `weather` and `rain` are passed in when the farm fits inside one cell of
+    the coarse datasets, so the same series is not fetched once per field. Rung
+    1 is the anomaly scan, rung 2 the weather windows, and rung 3 whatever a
+    human recorded - the only rung that names a disease.
+    """
+    risk = {"risks": [], "no_model": []}
+    reason = None
+    series = weather
+    if series is None and agro is not None:
+        series = agro.era5_daily_series(field_geom, start, end)
+    if series:
+        k = 273.15
+        t_min = [None if v is None else v - k for v in series.get("t_min") or []]
+        t_max = [None if v is None else v - k for v in series.get("t_max") or []]
+        t_dew = [None if v is None else v - k for v in series.get("t_dew") or []]
+        wet = rain if rain is not None else (
+            daily_rain_mm(field_geom, start, end) or [])
+        risk = dz.crop_risk(crop, t_min, t_max, t_dew, wet)
+    elif agro is None:
+        reason = "agronomy module unavailable, so no weather series"
+    else:
+        reason = "no ERA5-Land daily series, so no infection window"
+
+    out = dz.diagnose(anomaly, risk, scouting, crop)
+    out["crop"] = cr.resolve(crop)
+    out["risk"] = risk
+    out["refusal"] = dz.REFUSAL
+    out["refusal_ar"] = dz.REFUSAL_AR
+    if reason:
+        out["risk_reason"] = reason
+    return out
+
+
+def farm_fits_one_cell(feats: list, native_m: float) -> dict:
+    """
+    Is the whole farm inside a single pixel of a coarse dataset?
+
+    ERA5-Land is 11 km and CHIRPS is 5.5 km. A farm that fits inside one of
+    those cells has ONE weather series, not one per field - and fetching it per
+    field made the same round trip four times for four identical answers. On a
+    forty-field scheme that is forty.
+
+    But this is only true while the farm is small. A scheme spread over thirty
+    kilometres spans several cells, and reusing one field's series for all of
+    them would be inventing weather for the far end. So the extent is measured
+    and the answer is reported, rather than assumed either way.
+    """
+    pts = []
+    for f in feats:
+        ring = ((f.get("geometry") or {}).get("coordinates") or [[]])[0]
+        pts.extend(ring)
+    if not pts:
+        return {"fits": False, "reason": "no coordinates"}
+    lons = [p[0] for p in pts]
+    lats = [p[1] for p in pts]
+    # Degrees to metres at this latitude; good enough for a comparison against
+    # an 11 km pixel, and it errs towards fetching per field.
+    import math
+    mid = math.radians(sum(lats) / len(lats))
+    span_m = max((max(lons) - min(lons)) * 111320.0 * math.cos(mid),
+                 (max(lats) - min(lats)) * 110540.0)
+    fits = span_m <= native_m
+    return {"fits": fits, "extent_m": round(span_m), "native_m": native_m,
+            "reason": ("the farm fits inside one cell of this dataset, so one "
+                       "series describes every field in it" if fits else
+                       "the farm is wider than one cell, so each field gets "
+                       "its own series")}
+
+
+def daily_rain_mm(aoi, start: str, end: str) -> Optional[list]:
+    """CHIRPS daily rainfall over the field, as a list in date order.
+
+    Buffered to one native pixel: CHIRPS is 5.5 km and a field is ~600 m, so an
+    unbuffered reduction encloses no pixel centre and returns nulls for a
+    dataset that covers the field perfectly well.
+    """
+    try:
+        region = aoi.buffer(dl.coarse_sampling_buffer_m(5566))
+        col = (ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+               .filterBounds(region).filterDate(start, end))
+        if col.size().getInfo() == 0:
+            return None
+
+        def day(img):
+            v = img.reduceRegion(reducer=ee.Reducer.mean(), geometry=region,
+                                 scale=5566, maxPixels=1e8, bestEffort=True)
+            return ee.Feature(None, {"p": v.get("precipitation")})
+
+        return ee.FeatureCollection(col.map(day)).aggregate_array("p").getInfo()
+    except Exception:
+        return None
+
+
+def field_crop(feature: dict, run_crop: str) -> dict:
+    """
+    Which crop is standing in THIS field.
+
+    The engine used to apply one crop to the whole run, so a wheat block inside
+    a sorghum farm was given sorghum's growing-degree base and its 38 degC heat
+    threshold - six degrees above where wheat starts losing grain. The number
+    was not missing. It was wrong, and nothing said so.
+    """
+    declared = (feature.get("properties") or {}).get("crop")
+    source = "field" if declared else ("run" if run_crop else None)
+    info = cr.get(declared or run_crop)
+    return {"key": info["key"], "declared": info["declared"], "source": source,
+            "recognised": info["recognised"],
+            "ar": info["ar"], "en": info["en"],
+            "gdd_base_c": info["gdd_base_c"],
+            "heat_stress_c": info["heat_stress_c"],
+            "basis": info["basis"],
+            "note": ("" if info["recognised"] else
+                     f"the crop \"{info['declared']}\" is not in the crop "
+                     "library, so generic parameters were used and every "
+                     "crop-specific figure below rests on them"),
+            "note_ar": ("" if info["recognised"] else
+                        f"المحصول «{info['declared']}» ليس في مكتبة المحاصيل، "
+                        "فاستُخدمت معاملات عامّة، وكل رقم يخصّ المحصول أدناه "
+                        "يقوم عليها")}
+
+
 def _series_day_offsets(series: dict, start: str):
     """Turn the dated NDVI series into (day offsets from season start, values).
 
@@ -661,7 +860,8 @@ def rank_fields(field_records: list) -> dict:
 # ==============================================================================
 
 def analyse_farm(field_fc: dict, season: int, out_json: str,
-                 crop: str = "default", with_series: bool = True) -> dict:
+                 crop: str = "default", with_series: bool = True,
+                 observations_db: Optional[str] = None) -> dict:
     """
     Full farm report from field polygons alone. No canal geometry, no command
     areas, no scheme.
@@ -693,6 +893,17 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
     except Exception:
         fr = None
 
+    # The ground-truth store, if the app has been collecting into one. It is
+    # the only source that can name a disease, so its absence is stated rather
+    # than left as a silently empty third rung.
+    obs_store = None
+    if observations_db and os.path.exists(observations_db) and ncg is not None:
+        obs_store = ncg.ObservationStore(observations_db)
+        print(f"Scouting: reading named findings from {observations_db}")
+    elif observations_db:
+        print(f"Scouting: {observations_db} not found - no field reports, so "
+              "no disease can be named by this run")
+
     if not feats:
         print("\nNo fields supplied. There is nothing to report on, and no "
               "field boundary can honestly be invented.")
@@ -700,6 +911,23 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
 
     all_geom = ee.FeatureCollection(
         [ee.Feature(ee.Geometry(f["geometry"])) for f in feats]).geometry()
+
+    # ONE WEATHER SERIES FOR A FARM THAT FITS IN ONE WEATHER PIXEL.
+    # ERA5-Land is 11 km. Fetching it per field made the same round trip once
+    # per field for identical answers - forty times on a forty-field scheme.
+    # Reused only while the farm genuinely fits inside one cell; a scheme
+    # spread over thirty kilometres spans several, and sharing one series
+    # across those would be inventing weather for the far end.
+    ERA5_M, CHIRPS_M = 11132.0, 5566.0
+    era5_fit = farm_fits_one_cell(feats, ERA5_M)
+    chirps_fit = farm_fits_one_cell(feats, CHIRPS_M)
+    farm_weather = farm_rain = None
+    if era5_fit["fits"] and agro is not None:
+        farm_weather = agro.era5_daily_series(all_geom, start, end)
+        print(f"  weather          : one ERA5-Land series for the whole farm "
+              f"({era5_fit['extent_m']} m across, {int(ERA5_M)} m cell)")
+    if chirps_fit["fits"]:
+        farm_rain = daily_rain_mm(all_geom, start, end)
 
     results = {
         "tool": "Farm Monitor - agriculture engine",
@@ -733,6 +961,17 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
             "area, not over a field. No alert is raised from it.",
             "Soil texture is a global model at 250 m, not a soil test.",
             "Field rankings are an ordering, not a calibrated health score.",
+            "NO DISEASE IS NAMED FROM SATELLITE IMAGERY. Disease, water "
+            "stress, nitrogen deficiency, salinity, pest damage and lodging "
+            "all move these bands together and cannot be separated by them. "
+            "An anomaly says a patch is unlike the rest of the field and "
+            "names no cause.",
+            "Infection risk is weather favourability from published models, "
+            "not validated in Sudan, and it describes the air over the area - "
+            "it is equally true of every healthy field under that sky.",
+            "Crop parameters are FAO-56 and conventional published figures, "
+            "not Sudanese trial data. A heat threshold is as much a variety "
+            "property as a species one.",
         ],
         # The same list in Arabic. Emitted by the engine rather than translated
         # in the app, for the reason every other vocabulary in this project is:
@@ -753,6 +992,15 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
             "لا طقس الحقل. ولا يُرفع منها أي إنذار.",
             "قوام التربة نموذج عالمي عند 250 مترًا، لا تحليل تربة.",
             "ترتيب الحقول ترتيب، لا درجة صحّة معايَرة.",
+            "لا يُسمّى أي مرض من صور الأقمار. فالمرض ونقص الماء ونقص "
+            "النيتروجين والملوحة وضرر الآفات والرقاد تحرّك هذه النطاقات معًا "
+            "ولا تفصلها. والشذوذ يقول إنّ بقعة تختلف عن بقيّة الحقل، ولا "
+            "يسمّي سببًا.",
+            "خطر الإصابة مواتاة طقس من نماذج منشورة غير مُتحقَّق منها في "
+            "السودان، وهو يصف الهواء فوق المنطقة — ويصدق بالقدر نفسه على كل "
+            "حقل سليم تحت تلك السماء.",
+            "معاملات المحاصيل من FAO-56 وأرقام منشورة تقليدية، لا من تجارب "
+            "سودانية. وعتبة الحرارة صفة صنف بقدر ما هي صفة نوع.",
         ],
     }
 
@@ -783,9 +1031,20 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
         print(f"  vigour           : {vig.get('status')}"
               + (f"  {vig.get('value')}" if vig.get("value") is not None else ""))
 
+        # THE CROP IS THE FIELD'S, NOT THE RUN'S. A tenancy rotates cotton,
+        # sorghum, wheat and groundnut, and giving a wheat block sorghum's heat
+        # threshold produces a wrong number rather than a missing one.
+        fc = field_crop(f, crop)
+        if fc["source"] == "field":
+            print(f"  crop             : {fc['key']} (declared on the field)")
+        if not fc["recognised"]:
+            print(f"  crop             : UNRECOGNISED \"{fc['declared']}\" - "
+                  "generic parameters used")
+
         rec = {
             "name": name,
             "properties": f.get("properties", {}),
+            "crop": fc,
             "reference_provenance": ref_prov,
             "crop_health": health,
             "thermal_stress": thermal_stress(geom, ref, start, end,
@@ -811,13 +1070,20 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
             except Exception as e:
                 rec["water_requirement"] = {"status": "NOT AVAILABLE",
                                             "reason": str(e)[:140]}
-            rec["yield_estimate"] = agro.yield_estimate(v, crop)
+            rec["yield_estimate"] = agro.yield_estimate(v, fc["key"])
             if days and values:
                 rec["phenology"] = phenology(days, values)
+            # Does the observed canopy imply a coefficient anywhere near the
+            # published range for the crop this field claims to be growing? A
+            # check on the LABEL, not on the water figure, which is derived
+            # from greenness on purpose.
+            wr = rec.get("water_requirement") or {}
+            if wr.get("kcb") is not None:
+                rec["crop_check"] = cr.kcb_plausible(wr["kcb"], fc["key"])
 
         if ncg is not None:
             try:
-                rec["climate"] = ncg.climate_context(geom, start, end, crop)
+                rec["climate"] = ncg.climate_context(geom, start, end, fc["key"])
             except Exception as e:
                 rec["climate"] = {"status": "NOT AVAILABLE", "reason": str(e)[:140]}
             try:
@@ -836,7 +1102,7 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
                             reducer=ee.Reducer.mean(), geometry=sg,
                             scale=SCALE_M, maxPixels=1e9,
                             bestEffort=True).getInfo()
-                    nres = ncg.nutrition_status(fvals, scheme_stats, crop,
+                    nres = ncg.nutrition_status(fvals, scheme_stats, fc["key"],
                                                 reference_indices=strip_vals)
                     rec["nutrition"] = ncg.asdict_nutrition(nres)
                 else:
@@ -845,6 +1111,30 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
             except Exception as e:
                 rec["nutrition"] = {"status": "NOT AVAILABLE", "reason": str(e)[:140]}
 
+        # Rung 1 then rungs 2 and 3. The anomaly scan is computed first because
+        # the ladder needs it: a patch in THIS field outranks a weather window
+        # over every field.
+        anomaly = anomaly_scan(geom, f.get("geometry"), start, end)
+        rec["anomaly"] = anomaly
+        if anomaly.get("flagged"):
+            print(f"  anomaly          : {anomaly['area_ha']} ha in the "
+                  f"{anomaly.get('where')} - cause unknown")
+        # Rung 3 comes from what a person recorded. The observation store is
+        # preferred over the field file because it is where the app writes; a
+        # `scouting` list on the feature is still honoured, for a field file
+        # prepared by hand or by another system.
+        scouting = list((f.get("properties") or {}).get("scouting") or [])
+        if obs_store is not None:
+            scouting += obs_store.scouting_for(name)
+        rec["disease"] = disease_layer(geom, start, end, fc["key"],
+                                       anomaly=anomaly, scouting=scouting,
+                                       agro=agro, weather=farm_weather,
+                                       rain=farm_rain)
+        n_fav = rec["disease"].get("risk", {}).get("n_favourable", 0)
+        if n_fav:
+            print(f"  weather windows  : {n_fav} favourable to infection "
+                  "(about the air, not this field)")
+
         if fr is not None:
             rec["advisory"] = fr.advisory(rec, canal_record=None, lang="ar")
             rec["advisory_en"] = fr.advisory(rec, canal_record=None, lang="en")
@@ -852,6 +1142,18 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
         results["fields"].append(rec)
 
     results["ranking"] = rank_fields(results["fields"])
+    # What is actually standing on this farm, and where each label came from.
+    # A run that silently applied one crop to everything looked identical to a
+    # run over a genuinely single-crop farm.
+    present = {}
+    for r in results["fields"]:
+        k = (r.get("crop") or {}).get("key", "default")
+        present[k] = present.get(k, 0) + 1
+    results["crops_present"] = present
+    results["crop_source"] = (
+        "each field's own `crop` property where it has one, otherwise the "
+        "crop given to the run")
+    results["coarse_sampling"] = {"ERA5-Land": era5_fit, "CHIRPS": chirps_fit}
     if agro is not None:
         results["forecast"] = agro.forecast_7day(all_geom)
 

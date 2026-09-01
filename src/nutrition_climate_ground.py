@@ -428,6 +428,11 @@ class GroundObservation:
     weed_cover_pct: Optional[float] = None
     pest_damage: Optional[bool] = None
     disease_signs: Optional[bool] = None
+    # WHICH problem, not merely whether there was one. A boolean "disease
+    # signs" tick cannot lift the disease ladder past an anomaly: only a NAME
+    # can, because naming is the thing the satellite cannot do. The value is a
+    # key from src/disease.py, or empty.
+    problem: str = ""
     soil_surface: str = ""           # dry | moist | waterlogged | cracked | crusted
     salinity_signs: Optional[bool] = None
     water_reached_field: Optional[bool] = None
@@ -452,7 +457,7 @@ class ObservationStore:
                 photo_path TEXT NOT NULL, source TEXT NOT NULL, observer TEXT,
                 crop TEXT, growth_stage TEXT, canopy_condition TEXT,
                 weeds_present INTEGER, weed_cover_pct REAL,
-                pest_damage INTEGER, disease_signs INTEGER,
+                pest_damage INTEGER, disease_signs INTEGER, problem TEXT,
                 soil_surface TEXT, salinity_signs INTEGER,
                 water_reached_field INTEGER, days_since_irrigation INTEGER,
                 outlet_condition TEXT, notes TEXT,
@@ -466,14 +471,16 @@ class ObservationStore:
             "INSERT OR REPLACE INTO observations (obs_id, field_id, observed_at,"
             " lat, lon, photo_path, source, observer, crop, growth_stage,"
             " canopy_condition, weeds_present, weed_cover_pct, pest_damage,"
-            " disease_signs, soil_surface, salinity_signs, water_reached_field,"
+            " disease_signs, problem, soil_surface, salinity_signs,"
+            " water_reached_field,"
             " days_since_irrigation, outlet_condition, notes, satellite_ndvi,"
             " satellite_cire, satellite_agreement) VALUES "
-            "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (obs.obs_id, obs.field_id, obs.observed_at, obs.lat, obs.lon,
              obs.photo_path, obs.source, obs.observer, obs.crop, obs.growth_stage,
              obs.canopy_condition, _b(obs.weeds_present), obs.weed_cover_pct,
-             _b(obs.pest_damage), _b(obs.disease_signs), obs.soil_surface,
+             _b(obs.pest_damage), _b(obs.disease_signs), obs.problem,
+             obs.soil_surface,
              _b(obs.salinity_signs), _b(obs.water_reached_field),
              obs.days_since_irrigation, obs.outlet_condition, obs.notes,
              sat.get("NDVI"), sat.get("CIre"), obs.satellite_agreement))
@@ -506,6 +513,20 @@ class ObservationStore:
         return {"available": True, "total": scored, "unclear": unclear,
                 "breakdown": {k: v for k, v in counts.items()},
                 "agreement_rate": round(counts.get("AGREE", 0) / scored, 3)}
+
+    def scouting_for(self, field_id: str) -> list:
+        """Named findings for one field, newest last, in the shape the disease
+        ladder expects.
+
+        Only rows carrying a NAMED problem are returned. "I walked the field
+        and ticked disease signs" is not "I found anthracnose", and the rung
+        that names a disease must not be lifted by a checkbox."""
+        rows = self.conn.execute(
+            "SELECT problem, observed_at, observer FROM observations "
+            "WHERE field_id = ? AND problem IS NOT NULL AND problem != '' "
+            "ORDER BY observed_at", (field_id,)).fetchall()
+        return [{"problem": r[0], "observed_at": r[1], "observer": r[2] or ""}
+                for r in rows]
 
     def close(self):
         self.conn.close()

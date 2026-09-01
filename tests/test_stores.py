@@ -131,3 +131,81 @@ class TestObservationStore:
         assert summ["unclear"] == 2               # reported separately
         assert summ["agreement_rate"] == 0.5      # 1 AGREE / 2 scored
         st.close()
+
+
+class TestTheDiseaseLoopClosesEndToEnd:
+    """
+    Rung 3 is the only rung that names a disease, so it has to actually reach
+    the engine. The store is where the app writes and the engine reads; a break
+    anywhere in that chain leaves the disease layer permanently stuck at an
+    unnamed anomaly while appearing to work.
+    """
+    def _store(self, tmp_path):
+        import nutrition_climate_ground as ncg
+        return ncg.ObservationStore(str(tmp_path / "obs.db"))
+
+    def _obs(self, **kw):
+        import nutrition_climate_ground as ncg
+        base = dict(obs_id="o1", field_id="Field A",
+                    observed_at="2022-09-15T08:00:00+00:00",
+                    lat=14.42, lon=33.10, photo_path="", observer="Ali",
+                    crop="sorghum")
+        base.update(kw)
+        return ncg.GroundObservation(**base)
+
+    def test_a_named_finding_survives_the_round_trip(self, tmp_path):
+        store = self._store(tmp_path)
+        try:
+            store.add(self._obs(problem="sorghum_anthracnose"))
+            rows = store.scouting_for("Field A")
+            assert rows == [{"problem": "sorghum_anthracnose",
+                             "observed_at": "2022-09-15T08:00:00+00:00",
+                             "observer": "Ali"}]
+        finally:
+            store.close()
+
+    def test_a_ticked_checkbox_without_a_name_is_not_a_diagnosis(self, tmp_path):
+        """"I walked the field and ticked disease signs" is not "I found
+        anthracnose". The rung that names a disease must not be lifted by a
+        checkbox."""
+        store = self._store(tmp_path)
+        try:
+            store.add(self._obs(obs_id="o2", disease_signs=True, problem=""))
+            assert store.scouting_for("Field A") == []
+        finally:
+            store.close()
+
+    def test_findings_come_back_oldest_first_so_the_latest_wins(self, tmp_path):
+        store = self._store(tmp_path)
+        try:
+            store.add(self._obs(obs_id="a", problem="striga",
+                                observed_at="2022-08-01"))
+            store.add(self._obs(obs_id="b", problem="sorghum_anthracnose",
+                                observed_at="2022-10-01"))
+            rows = store.scouting_for("Field A")
+            assert [r["problem"] for r in rows] == ["striga",
+                                                    "sorghum_anthracnose"]
+        finally:
+            store.close()
+
+    def test_the_store_feeds_the_ladder(self, tmp_path):
+        """The join that matters: what the app writes is the shape the ladder
+        reads."""
+        import disease as dz
+        store = self._store(tmp_path)
+        try:
+            store.add(self._obs(problem="sorghum_anthracnose"))
+            out = dz.diagnose(scouting=store.scouting_for("Field A"))
+            assert out["claim_level"] == "REPORTED"
+            assert out["problem"] == "sorghum_anthracnose"
+            assert out["observer"] == "Ali"
+        finally:
+            store.close()
+
+    def test_another_field_s_findings_do_not_leak(self, tmp_path):
+        store = self._store(tmp_path)
+        try:
+            store.add(self._obs(problem="striga"))
+            assert store.scouting_for("Field B") == []
+        finally:
+            store.close()

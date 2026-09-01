@@ -37,6 +37,12 @@ src/
                                irrigation requirement, GFS outlook, yield gate.
   rangeland.py                 rangeland productivity + timing, water points,
                                corridors — with the neutrality guard enforced.
+  crops.py                     the crop library: parameters, aliases, and
+                               the checks against a declared crop label.
+  disease.py                   disease and pests as a three-rung ladder,
+                               and the refusal at the top of it.
+  change.py                    run-to-run comparison; ripening is not
+                               failure.
   farm_records.py              REPORTED-side store (operations, costs, sales,
                                margins) and the rule-based advisory.
   farmer_channel.py            Stage 4 floor: one-sentence Arabic/English card.
@@ -54,13 +60,15 @@ farmer_app/
                                the frame that fits every field on opening.
   view.py, ui.py               display decisions; layout, tokens and copy.
   about.py                     the method, whole, off the working screen.
+  changes.py                   what moved since the previous run.
+  runner.py                    run the engine from the app, streamed.
 geolibre_plugin/
   plugin.json, forms/, bridge.py   Stage 4: manifest, field form, two-way bridge.
 geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
   canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
                                against what the engine requires, before a run.
-tests/                         498 tests; run with no Earth Engine.
+tests/                         629 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -542,3 +550,138 @@ through in English so a new verdict is visible and fixable rather than blanked.
 
 The list of things the tool does **not** claim is emitted by the engine in both
 languages. It is the last list that should reach a Sudanese farmer in English.
+
+## Disease and pests, and the claim this tool will not make
+
+A satellite cannot name a disease. That is not a limitation of the current
+implementation to be lifted by better code — it is a property of the
+measurement. Sentinel-2 sees reflectance in a handful of broad bands, and
+anthracnose, water stress, nitrogen deficiency, salinity, stem borer, lodging
+and a badly set seed drill all move those bands together.
+
+Products in this market do claim it: a field drawn red and captioned with a
+pathogen. That is a guess wearing the clothes of a measurement, and the cost is
+not abstract — a farmer sprays a fungicide against a disease they do not have,
+spends money they do not have, and learns that the tool lies. The second
+consequence is worse than the first, because it also destroys the value of the
+readings that were real.
+
+So the layer is a ladder, and each rung says what it is:
+
+| Rung | Source | Claim | Colour |
+|---|---|---|---|
+| **REPORTED** | a person who walked out and looked | names a disease as present | red |
+| **ANOMALY** | Sentinel-2 | a patch is unlike the rest of *this field*; size and direction, **no cause** | amber |
+| **RISK** | ERA5-Land + CHIRPS | the weather was favourable to *X*; true of every field under that sky | grey |
+
+The colours carry the argument. REPORTED is the only red, because it is the only
+rung that names a disease. A weather window drawn red would be this whole
+product category's failure in one colour.
+
+**The anomaly** compares a field with its own interior rather than with its
+neighbours — median minus two robust sigmas of the field's own spread — and
+returns a size in hectares and one of eight compass directions, because a
+coordinate pair is not a direction to anybody standing in a field. A uniformly
+poor field produces no anomaly, and that is correct: *unlike the rest of this
+field* and *bad* are different statements.
+
+**The weather models** are published infection windows — a temperature range plus
+leaf wetness — from phytopathology, mostly from other countries, **none validated
+against Sudanese disease surveys**. Leaf wetness is the variable they want and
+nothing measures it; the proxy is a rain day or a daily maximum relative humidity
+above threshold, computed from ERA5-Land dewpoint against the day's minimum
+temperature. It is a proxy, it is named as one, and it will be wrong on a windy
+night. Sudanese winter wheat sits under heavy dew and almost no rain, so a model
+counting only rain would report no rust risk all season.
+
+Problems with **no defensible daily model get none**. A whitefly-borne virus is
+driven by insect population dynamics and a soil-borne wilt by inoculum that has
+been in that soil for years; a temperature window for either would produce a
+number every day and mean nothing. Those are returned in a visible `no_model`
+list, so the absence of a fall-armyworm risk line reads as *nothing here can
+predict it*, never as *it is fine*. Striga is registered as a **parasitic weed**,
+not a disease — it is the largest biological constraint on Sudanese sorghum and
+it is a flowering plant, and calling it a disease would send a farmer for a
+fungicide.
+
+Rung 3 closes the loop: the scouting form asks **which** problem, offered only
+from the selected crop's own registry, and the engine reads named findings back
+out of the observation store. A ticked "disease signs" checkbox does not lift the
+ladder — *I walked the field* is not *I found anthracnose*.
+
+## Crop diversity
+
+The engine applied one crop to a whole run. A Gezira tenancy rotates cotton,
+sorghum, wheat and groundnut, so a wheat block inside a sorghum run was given
+sorghum's growing-degree base and its 38 °C heat threshold — six degrees above
+where wheat actually starts losing grain. **The number was not missing. It was
+wrong, and nothing on the screen said so.**
+
+`src/crops.py` now holds eleven crops of Sudanese irrigated agriculture —
+sorghum, wheat, cotton, groundnut, sesame, maize, sunflower, onion, faba bean,
+alfalfa, tomato — each with its base temperature, heat threshold, FAO-56 Kc
+stages, rooting depth, sowing window and registered problems. Every field is
+analysed as **its own** crop, taken from its `crop` property and falling back to
+the run's; the report records which, per field. Arabic crop names resolve.
+
+The Kc table is not used to compute the water requirement — that is derived from
+observed greenness on purpose. It is used as a **check**: a Kcb from NDVI far
+outside the published range for the declared crop means either the label is wrong
+or the field is not carrying the canopy the label implies, and both are worth
+knowing. A crop the library does not know is analysed with generic parameters and
+says so on the field itself, because "nobody declared a crop" and "somebody
+declared one I did not recognise" are different facts.
+
+## What changed since last time
+
+Every report was a season summary: you could read one and know how the farm
+stood, and could not read two and know what had moved.
+
+The verdict this page exists to get right is that **a decline past the NDVI peak
+is a crop ripening, not a crop failing**. Sorghum greens up in August, peaks in
+October and senesces on purpose all the way to harvest. A change detector that
+flags every decline flags every field on the scheme every autumn — and buries the
+one field that is actually failing. The same fall before the peak is a decline;
+what separates them is the green-up date the engine already computed.
+
+A move smaller than the field's own robust spread is reported as steady, so a
+noisy field needs a bigger move to be believed. Dates are **scene** dates, not run
+dates: two runs a week apart can rest on scenes a month apart when the newer run
+found nothing but cloud, and reporting "7 days" for a 31-day gap would make a slow
+drift look like a collapse. A field present in only one run is listed, never
+silently dropped.
+
+## Running it from the app
+
+Drawing a field and then being handed a shell command is a step where people
+stop. The **Run the analysis** page takes the field file, the season, the default
+crop and the output path, prints the exact command, gives a rough time estimate,
+and streams the engine's own output — refusals included. It runs the engine as a
+child process: Earth Engine authentication, quota errors and network stalls all
+fail in ways that would otherwise take the app down with them.
+
+Drawn shapes now go through a **field editor** before saving: name, crop, sowing
+date and tenancy number. A boundary with no name and no crop is a shape, not a
+field — the search cannot find it, and the report calls it "حقل 3".
+
+## Running it safely
+
+The app binds to `127.0.0.1` by default (`.streamlit/config.toml`). Streamlit's
+own default binds every interface and prints an External URL, which is what it
+says it is. This app draws real tenancy boundaries, their coordinates, and
+whatever a farmer has recorded about their land and their money. Bind it wider
+only behind authentication.
+
+Earth Engine credentials are never asked for by the app and never stored by it;
+the child process uses whatever `earthengine authenticate` put in the user's own
+home directory.
+
+## One weather series for one weather pixel
+
+ERA5-Land is 11 km and CHIRPS is 5.5 km. A farm that fits inside one of those
+cells has one weather series, not one per field — and fetching it per field made
+the same round trip four times for four identical answers, or forty times on a
+forty-field scheme. The extent is measured against the native pixel and the
+decision is recorded in the report. A scheme spread over thirty kilometres spans
+several cells, and sharing one series across those would be inventing weather for
+the far end.

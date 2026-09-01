@@ -62,6 +62,26 @@ def _band_count(band: str, geomspec: str) -> float:
     return 12000.0 * (0.7 + 0.3 * _h("count", band, geomspec))
 
 
+def _coord_in(band: str, coords, geomspec: str) -> float:
+    """A deterministic point INSIDE the given polygon.
+
+    The anomaly patch's centroid is turned into a compass bearing from the
+    field's centre, so a coordinate drawn from a hash rather than from the
+    geometry would put the patch outside its own field and produce a direction
+    that means nothing. This walks the outer ring, takes its bounding box, and
+    picks a repeatable point inside it.
+    """
+    ring = None
+    if coords:
+        ring = coords[0] if isinstance(coords[0][0], (list, tuple)) else coords
+    if not ring:
+        return 33.0 if band == "longitude" else 14.4
+    idx = 0 if band == "longitude" else 1
+    vals = [float(p[idx]) for p in ring]
+    lo, hi = min(vals), max(vals)
+    return lo + (hi - lo) * (0.15 + 0.7 * _h("coord", band, geomspec))
+
+
 def _histogram(band: str, geomspec: str) -> dict:
     """A deterministic, mostly-bimodal histogram so Otsu has something real to
     split (bare soil hump low, crop hump high)."""
@@ -195,9 +215,19 @@ class Image:
     def reduceRegion(self, reducer=None, geometry=None, scale=None,
                      maxPixels=None, bestEffort=None, **kw):
         gspec = geometry.spec if isinstance(geometry, Geometry) else "none"
+        gcoords = geometry._coords if isinstance(geometry, Geometry) else None
         out = {}
         for b in self.bands:
-            if reducer.kind == "mean":
+            # Coordinates have to come from the geometry rather than from a
+            # hash, or the anomaly patch would sit outside the field it is
+            # supposed to be inside and the bearing would be nonsense.
+            if b in ("longitude", "latitude"):
+                out[b] = _coord_in(b, gcoords, gspec)
+            elif b == "area":
+                # Masked: the patch. Unmasked: the whole field. Both in m2.
+                out[b] = 12000.0 * (0.05 + 0.25 * _h("patch", gspec)) \
+                    if self._mask else 400000.0
+            elif reducer.kind == "mean":
                 out[b] = _band_mean(b, gspec)
             elif reducer.kind == "sum":
                 out[b] = _band_count(b, gspec) if (self._mask or b == "constant") \
@@ -218,6 +248,18 @@ class Image:
     @staticmethod
     def constant(v):
         return Image(["constant"], f"const({v})")
+
+    @staticmethod
+    def pixelArea():
+        """Per-pixel area in square metres. Summed over a masked image, this is
+        how the anomaly scan measures a patch."""
+        return Image(["area"], "pixelArea")
+
+    @staticmethod
+    def pixelLonLat():
+        """Per-pixel coordinates. Averaged over a masked image, this is where
+        the patch is - which is what turns a number into somewhere to walk."""
+        return Image(["longitude", "latitude"], "pixelLonLat")
 
     @staticmethod
     def cat(imgs):

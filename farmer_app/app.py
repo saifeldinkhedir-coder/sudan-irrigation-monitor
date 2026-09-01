@@ -50,8 +50,11 @@ import view as D
 import record as R
 import about as A
 import search as S
+import changes as CG
+import runner as RUN
 import ui
 import fieldmap as FM
+import crops as CROPS
 
 
 def _args():
@@ -104,17 +107,32 @@ def main():
     ], demo=bool(report.get("note")))
 
     page = st.sidebar.radio(ui.t("page", ar),
-                            [ui.t("page_fields", ar), ui.t("page_record", ar),
+                            [ui.t("page_fields", ar), ui.t("page_changes", ar),
+                             ui.t("page_run", ar), ui.t("page_record", ar),
                              ui.t("page_about", ar)])
+
+    field_fc = (_load(fields_path)
+                if fields_path and os.path.exists(fields_path) else None)
+
     if page == ui.t("page_record", ar):
         R.render(report)
         return
     if page == ui.t("page_about", ar):
         A.render(report, ar)
         return
+    if page == ui.t("page_changes", ar):
+        CG.render(report, ar)
+        return
+    if page == ui.t("page_run", ar):
+        season_year = int(str(season.get("start", "2022"))[:4] or 2022)
+        produced = RUN.panel(fields_path if field_fc else None,
+                             len((field_fc or {}).get("features", [])),
+                             season_year, CROPS.resolve(report.get("crop")), ar)
+        if produced:
+            st.caption(ui.t("then_run", ar))
+            st.code(produced)
+        return
 
-    field_fc = (_load(fields_path)
-                if fields_path and os.path.exists(fields_path) else None)
     index = S.field_index(report, field_fc, ar=ar)
 
     counts = S.status_counts(index)
@@ -172,7 +190,9 @@ def main():
     if rec is None:
         return
     ui.section(f'{ui.t("field_detail", ar)} — {chosen}', "", ar)
+    _render_crop(rec, ar)
     _render_field(rec, ar)
+    _render_disease(rec, ar)
     _render_forecast(report, ar)
 
 
@@ -328,6 +348,44 @@ def _handle_drawings(state, ar):
     total_ha = sum(f["properties"]["area_ha"] for f in drawn["features"])
     ui.stats([(ui.t("drawn_count", ar).format(n=n), f"{total_ha:.1f} ha", None)])
 
+    # THE FIELD EDITOR. A boundary with no name, no crop and no sowing date is
+    # a shape, not a field: the search cannot find it, the engine gives it the
+    # run's crop whatever is standing in it, and the report calls it "حقل 3".
+    # This is where a drawn shape becomes a record.
+    ui.section(ui.t("name_your_fields", ar), ui.t("editor_help", ar), ar)
+    crop_keys = [k for k, _l in CROPS.names(ar)]
+    edited = st.data_editor(
+        [{ui.t("col_name", ar): f["properties"]["name"],
+          ui.t("col_crop", ar): CROPS.label(
+              f["properties"].get("crop") or "default", ar),
+          ui.t("col_sown", ar): f["properties"].get("sowing_date", ""),
+          ui.t("col_tenancy", ar): f["properties"].get("tenancy", ""),
+          ui.t("col_area", ar): f["properties"]["area_ha"]}
+         for f in drawn["features"]],
+        width="stretch", hide_index=True, key="field_editor",
+        column_config={
+            ui.t("col_crop", ar): st.column_config.SelectboxColumn(
+                options=[CROPS.label(k, ar) for k in crop_keys]),
+            ui.t("col_area", ar): st.column_config.NumberColumn(disabled=True),
+        })
+
+    by_label = {CROPS.label(k, ar): k for k in crop_keys}
+    for feat, row in zip(drawn["features"], edited):
+        props = feat["properties"]
+        props["name"] = (row.get(ui.t("col_name", ar))
+                         or props["name"]).strip()
+        crop_key = by_label.get(row.get(ui.t("col_crop", ar)), "default")
+        if crop_key != "default":
+            props["crop"] = crop_key
+        else:
+            props.pop("crop", None)
+        for key, col in (("sowing_date", "col_sown"), ("tenancy", "col_tenancy")):
+            val = str(row.get(ui.t(col, ar)) or "").strip()
+            if val:
+                props[key] = val
+            else:
+                props.pop(key, None)
+
     c1, c2 = st.columns([2, 3])
     out = c1.text_input("GeoJSON", "my_fields.geojson",
                         label_visibility="collapsed")
@@ -335,9 +393,7 @@ def _handle_drawings(state, ar):
         written = FM.save_fields(drawn, out)
         st.success(f"{ui.t('saved_to', ar)} {out} — {written}")
         st.caption(ui.t("then_run", ar))
-        st.code(f"python src/farm_cli.py --fields {out} "
-                f"--season 2022 --crop sorghum --out farm_report.json",
-                language="bash")
+        st.info(ui.t("run_from_app", ar))
 
 
 # ==============================================================================
@@ -416,6 +472,82 @@ def _render_field(rec, ar):
             with st.expander(ui.t("not_said", ar)):
                 for w in adv["withheld"]:
                     st.caption(f"**{w['key']}** — {w['reason']}")
+
+
+def _render_crop(rec, ar):
+    """Which crop this field was analysed as, and where the label came from.
+
+    A crop nobody declared and a crop somebody declared that the library did
+    not recognise are different facts, and the second means every crop-specific
+    figure on this screen rests on generic parameters."""
+    c = D.crop_line(rec, ar)
+    if not c["available"]:
+        ui.note(c["text"], "warn", ar)
+        return
+    tags = [c["source_text"]] if c["source_text"] else []
+    if c.get("heat_stress_c"):
+        tags.append(f'{ui.t("heat_over", ar)} {c["heat_stress_c"]} °C')
+    ui.field_row(c["name"], "ok" if c["recognised"] else "unmeasured",
+                 ui.t("crop_of_field", ar), tags, ar=ar)
+    if not c["recognised"]:
+        ui.note(c["warning"] or ui.t("crop_generic", ar), "warn", ar)
+    # Silence when the canopy is plausible: a check that speaks when it passes
+    # is noise.
+    chk = D.crop_check_line(rec, ar)
+    if chk:
+        ui.note(chk, "warn", ar)
+
+
+def _render_disease(rec, ar):
+    """
+    The three-rung disease and pest layer.
+
+    The colours carry the argument. REPORTED is the only red, because it is the
+    only rung that names a disease as present. A weather window is grey: it is
+    a statement about the sky over every field, healthy ones included, and
+    drawing it red would be this whole product category's failure in one
+    colour.
+    """
+    p = D.disease_panel(rec, ar)
+    ui.section(ui.t("disease_title", ar), "", ar)
+    if not p["available"]:
+        ui.note(p["reason"], "warn", ar)
+        return
+
+    ui.field_row(p["headline"] or p["level_label"], p["status_key"],
+                 p["level_label"],
+                 [p["problem_label"]] if p["problem_label"] else [],
+                 sub=p["note"], ar=ar)
+    if p["next_step"]:
+        ui.note(p["next_step"], "", ar)
+
+    left, right = st.columns(2, gap="large")
+
+    with left:
+        ui.section(ui.t("anomaly_title", ar), "", ar)
+        line = D.anomaly_line(rec, ar)
+        ui.note(line or "—", "", ar)
+
+    with right:
+        ui.section(ui.t("weather_windows", ar), "", ar)
+        if p["risk_reason"]:
+            ui.note(p["risk_reason"], "warn", ar)
+        for r in p["risks"]:
+            kind = "warn" if r["band"] == "FAVOURABLE" else ""
+            ui.note(f'<b>{r["name"]}</b> — {r["band_label"]} · '
+                    + ui.t("risk_days", ar).format(d=r["days"], n=r["window"]),
+                    kind, ar)
+            if r["band"] == "FAVOURABLE" and r["scout"]:
+                st.caption(f'{ui.t("scout_for", ar)} {r["scout"]}')
+        # The absence of a risk line for a migratory pest must read as
+        # "nothing here predicts it", never as "it is fine".
+        if p["no_model"]:
+            ui.note(ui.t("no_weather_model", ar) + " "
+                    + "، ".join(n["name"] for n in p["no_model"]), "", ar)
+
+    with st.expander(ui.t("refusal_title", ar)):
+        st.caption(p["refusal"])
+        st.caption(ui.t("disease_ladder", ar))
 
 
 def _render_forecast(report, ar):

@@ -485,6 +485,19 @@
           "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
         },
         "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      },
+      "crop": {
+        "key": "sorghum",
+        "declared": "sorghum",
+        "source": "run",
+        "recognised": true,
+        "ar": "ذرة رفيعة",
+        "en": "sorghum",
+        "gdd_base_c": 10.0,
+        "heat_stress_c": 38.0,
+        "basis": "FAO-56 Table 12 for Kc; conventional published figures for base temperature and heat threshold. NOT Sudanese trial data. A heat threshold in particular is as much a variety property as a species one, and Gezira varieties have been selected under heat for a century.",
+        "note": "",
+        "note_ar": ""
       }
     },
     {
@@ -961,6 +974,19 @@
           "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
         },
         "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      },
+      "crop": {
+        "key": "sorghum",
+        "declared": "sorghum",
+        "source": "run",
+        "recognised": true,
+        "ar": "ذرة رفيعة",
+        "en": "sorghum",
+        "gdd_base_c": 10.0,
+        "heat_stress_c": 38.0,
+        "basis": "FAO-56 Table 12 for Kc; conventional published figures for base temperature and heat threshold. NOT Sudanese trial data. A heat threshold in particular is as much a variety property as a species one, and Gezira varieties have been selected under heat for a century.",
+        "note": "",
+        "note_ar": ""
       }
     },
     {
@@ -1429,6 +1455,19 @@
           "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
         },
         "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      },
+      "crop": {
+        "key": "sorghum",
+        "declared": "sorghum",
+        "source": "run",
+        "recognised": true,
+        "ar": "ذرة رفيعة",
+        "en": "sorghum",
+        "gdd_base_c": 10.0,
+        "heat_stress_c": 38.0,
+        "basis": "FAO-56 Table 12 for Kc; conventional published figures for base temperature and heat threshold. NOT Sudanese trial data. A heat threshold in particular is as much a variety property as a species one, and Gezira varieties have been selected under heat for a century.",
+        "note": "",
+        "note_ar": ""
       }
     },
     {
@@ -1897,6 +1936,19 @@
           "note": "ARBITRARY: the deficit worth mentioning is a hand-chosen figure controlling how often this advisory speaks, and carries no agronomic meaning."
         },
         "rule": "Every item is traceable to an indicator the engine computed and marked OK. Nothing is inferred, generated or filled in. A missing indicator produces silence, listed in `withheld`."
+      },
+      "crop": {
+        "key": "sorghum",
+        "declared": "sorghum",
+        "source": "run",
+        "recognised": true,
+        "ar": "ذرة رفيعة",
+        "en": "sorghum",
+        "gdd_base_c": 10.0,
+        "heat_stress_c": 38.0,
+        "basis": "FAO-56 Table 12 for Kc; conventional published figures for base temperature and heat threshold. NOT Sudanese trial data. A heat threshold in particular is as much a variety property as a species one, and Gezira varieties have been selected under heat for a century.",
+        "note": "",
+        "note_ar": ""
       }
     }
   ],
@@ -1972,5 +2024,9 @@
     "توقّعات الأيام السبعة نموذج عالمي بدقّة نحو 28 كم: طقس المنطقة لا طقس الحقل. ولا يُرفع منها أي إنذار.",
     "قوام التربة نموذج عالمي عند 250 مترًا، لا تحليل تربة.",
     "ترتيب الحقول ترتيب، لا درجة صحّة معايَرة."
-  ]
+  ],
+  "crops_present": {
+    "sorghum": 4
+  },
+  "crop_source": "each field's own `crop` property where it has one, otherwise the crop given to the run"
 }

@@ -4,18 +4,39 @@
     {
       "name": "farmer",
       "runtimeExecutable": "streamlit",
-      "runtimeArgs": ["run", "farmer_app/app.py", "--server.port", "8503",
-                      "--server.headless", "true", "--",
-                      "--report", "docs/farm_report_demo.json",
-                      "--fields", "docs/gezira_fields_demo.geojson"],
+      "runtimeArgs": [
+        "run",
+        "farmer_app/app.py",
+        "--server.port",
+        "8503",
+        "--server.address",
+        "127.0.0.1",
+        "--server.headless",
+        "true",
+        "--",
+        "--report",
+        "docs/farm_report_demo.json",
+        "--fields",
+        "docs/gezira_fields_demo.geojson"
+      ],
       "port": 8503
     },
     {
       "name": "dashboard",
       "runtimeExecutable": "streamlit",
-      "runtimeArgs": ["run", "dashboard/app.py", "--server.port", "8502",
-                      "--server.headless", "true", "--",
-                      "--results", "docs/sample_results.json"],
+      "runtimeArgs": [
+        "run",
+        "dashboard/app.py",
+        "--server.port",
+        "8502",
+        "--server.address",
+        "127.0.0.1",
+        "--server.headless",
+        "true",
+        "--",
+        "--results",
+        "docs/sample_results.json"
+      ],
       "port": 8502
     }
   ]

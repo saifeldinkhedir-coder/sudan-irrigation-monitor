@@ -679,3 +679,162 @@ def attention_list(report: dict, ar: bool = False) -> dict:
             "n_watch": sum(1 for e in ranked if e["status"] == "watch"),
             "basis": r.get("basis", ""),
             "unmeasured_note": r.get("unmeasured_note", "")}
+
+
+# ==============================================================================
+# CROP AND DISEASE
+# ==============================================================================
+#
+# The display half of the two layers added last. The rule they are both built
+# around is the same one that governs the colours: a claim must look like what
+# it is. A crop label that nobody declared must not look like one that was, and
+# a weather window must not look like a diagnosis.
+
+import os as _os
+import sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), "..", "src"))
+import crops as _crops          # noqa: E402
+import disease as _disease      # noqa: E402
+
+
+CLAIM_LEVEL = {
+    "REPORTED": ("مُبلَّغ عنه", "reported"),
+    "ANOMALY": ("شذوذ داخل الحقل", "within-field anomaly"),
+    "RISK": ("خطر من الطقس", "weather risk"),
+    "NONE": ("لا شيء", "nothing"),
+}
+
+# The colour a disease claim is drawn in. REPORTED is the only red: it is the
+# only rung that names a disease as present. An anomaly is amber because it is
+# a place to walk to, and a weather window is grey because it is a statement
+# about the sky, not about this field. Drawing a weather window in red would be
+# the whole failure of this product category in one colour.
+CLAIM_STATUS = {"REPORTED": "attention", "ANOMALY": "watch",
+                "RISK": "unmeasured", "NONE": "ok"}
+
+RISK_BAND = {
+    "FAVOURABLE": ("مواتٍ", "favourable"),
+    "MARGINAL": ("حدّي", "marginal"),
+    "NOT FAVOURABLE": ("غير مواتٍ", "not favourable"),
+}
+
+
+def crop_line(record: dict, ar: bool = False) -> dict:
+    """
+    What crop this field was analysed as, and where that label came from.
+
+    "Nobody said" and "somebody said something the library did not recognise"
+    are different facts. The second means every crop-specific figure on the
+    screen rests on generic parameters, and the reader has to be able to see
+    that without opening the JSON.
+    """
+    c = record.get("crop") or {}
+    if not c:
+        return {"available": False,
+                "text": ("لم يُسجَّل محصول لهذا الحقل — أعد تشغيل المحرّك "
+                         "لتسجيله" if ar else
+                         "no crop recorded for this field - re-run the engine "
+                         "to record one")}
+    name = c["ar"] if ar else c["en"]
+    src = c.get("source")
+    where = {"field": ("من بيانات الحقل", "declared on the field"),
+             "run": ("من إعداد التشغيل", "from the run setting")}.get(src)
+    return {
+        "available": True,
+        "key": c.get("key"),
+        "name": name,
+        "source": src,
+        "source_text": (where[0] if ar else where[1]) if where else "",
+        "recognised": c.get("recognised", True),
+        "warning": (c.get("note_ar") if ar else c.get("note")) or "",
+        "heat_stress_c": c.get("heat_stress_c"),
+        "gdd_base_c": c.get("gdd_base_c"),
+    }
+
+
+def crop_check_line(record: dict, ar: bool = False) -> str:
+    """The canopy-against-label check, as one sentence or nothing.
+
+    Silence when the canopy is plausible. This is a check, not a reading, and a
+    check that speaks when it passes is noise."""
+    chk = record.get("crop_check") or {}
+    if chk.get("status") != "OK" or chk.get("plausible") is not False:
+        return ""
+    return (chk.get("note_ar") if ar else chk.get("note")) or ""
+
+
+def disease_panel(record: dict, ar: bool = False) -> dict:
+    """
+    The disease and pest ladder for one field, ready to draw.
+
+    Returns the claim, its colour, what to do next, the weather windows behind
+    it, and the problems for which nothing here can produce a risk line at all.
+    That last list is not padding: the absence of a fall-armyworm risk must
+    read as "nothing here predicts it", never as "it is fine".
+    """
+    d = record.get("disease") or {}
+    if not d:
+        return {"available": False,
+                "reason": ("لا طبقة أمراض في هذا التقرير — وُلِّد قبل إضافتها. "
+                           "أعد تشغيل المحرّك." if ar else
+                           "this report has no disease layer - it was "
+                           "generated before one existed. Re-run the engine.")}
+
+    level = d.get("claim_level", "NONE")
+    risks = (d.get("risk") or {}).get("risks", [])
+    no_model = (d.get("risk") or {}).get("no_model", [])
+
+    return {
+        "available": True,
+        "level": level,
+        "level_label": label(CLAIM_LEVEL, level, ar),
+        "status_key": CLAIM_STATUS.get(level, "unmeasured"),
+        "headline": d.get("headline_ar" if ar else "headline", ""),
+        "note": d.get("note_ar" if ar else "note", ""),
+        "next_step": d.get("next_step_ar" if ar else "next_step", ""),
+        "problem": d.get("problem"),
+        "problem_label": (_disease.label(d["problem"], ar)
+                          if d.get("problem") else ""),
+        "provenance": d.get("provenance"),
+        "risks": [{
+            "key": r["problem"],
+            "name": _disease.label(r["problem"], ar),
+            "band": r["band"],
+            "band_label": label(RISK_BAND, r["band"], ar),
+            "days": r.get("favourable_days"),
+            "needed": r.get("days_needed"),
+            "window": r.get("window_days"),
+            "kind": r.get("kind"),
+            "scout": r.get("scout_for_ar" if ar else "scout_for", ""),
+        } for r in risks],
+        "no_model": [{
+            "key": n["problem"],
+            "name": _disease.label(n["problem"], ar),
+            "kind": n.get("kind"),
+            "why": n.get("reason_ar" if ar else "reason", ""),
+        } for n in no_model],
+        "refusal": d.get("refusal_ar" if ar else "refusal", ""),
+        "risk_reason": d.get("risk_reason", ""),
+    }
+
+
+def anomaly_line(record: dict, ar: bool = False) -> str:
+    """The within-field anomaly as one sentence, or the reason there is none."""
+    a = record.get("anomaly") or {}
+    if a.get("status") != "OK":
+        return a.get("reason", "")
+    if not a.get("flagged"):
+        return a.get("reason_ar" if ar else "reason", "")
+    where = a.get("where_ar") if ar else a.get("where")
+    if ar:
+        return (f"نحو {a['area_ha']} هكتار ({a['fraction']:.0%} من الحقل) في "
+                f"{where} تختلف عن بقيّة الحقل.")
+    return (f"about {a['area_ha']} ha ({a['fraction']:.0%} of the field) in "
+            f"the {where} is unlike the rest of it.")
+
+
+def crop_problem_options(crop, ar: bool = False) -> list:
+    """(key, label) for every problem registered against a crop, for the
+    scouting form. An empty list means nothing is registered for this crop -
+    which the form must say, rather than offering another crop's diseases."""
+    return [(k, _disease.label(k, ar)) for k, _e in _disease.for_crop(crop)]

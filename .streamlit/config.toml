@@ -11,5 +11,16 @@ font = "sans serif"
 [server]
 headless = true
 
+# Bind to the loopback interface, not to every interface.
+#
+# The default binds 0.0.0.0, and Streamlit helpfully prints an "External URL"
+# on start - which is what it says it is. This app draws real tenancy
+# boundaries, their coordinates, and whatever a farmer has recorded about their
+# own land and money. None of that should be reachable from the network because
+# somebody ran the app on a laptop in a field office with a public IP.
+#
+# Override deliberately (--server.address 0.0.0.0) only behind authentication.
+address = "127.0.0.1"
+
 [browser]
 gatherUsageStats = false

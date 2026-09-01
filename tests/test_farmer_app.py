@@ -1060,3 +1060,152 @@ class TestTheMapFramesTheFields:
         m = FM.build_map(feats, (0.0, 0.0), zoom=14)
         assert m.location == [lat, lon]
         assert m.options["zoom"] == zoom
+
+
+# ==============================================================================
+# CROP AND DISEASE ON THE SCREEN
+# ==============================================================================
+
+class TestTheCropLabelReachesTheReader:
+    def test_a_declared_crop_says_where_it_came_from(self):
+        rec = {"crop": {"key": "wheat", "ar": "قمح", "en": "wheat",
+                        "source": "field", "recognised": True,
+                        "heat_stress_c": 32.0, "gdd_base_c": 4.0}}
+        out = D.crop_line(rec, ar=True)
+        assert out["name"] == "قمح"
+        assert "بيانات الحقل" in out["source_text"]
+        assert out["recognised"] is True
+
+    def test_an_unrecognised_crop_warns_that_the_figures_rest_on_generics(self):
+        rec = {"crop": {"key": "default", "ar": "غير محدّد", "en": "unspecified",
+                        "source": "field", "recognised": False,
+                        "note": "the crop \"quinoa\" is not in the crop library",
+                        "note_ar": "المحصول «quinoa» ليس في مكتبة المحاصيل",
+                        "heat_stress_c": 35.0, "gdd_base_c": 10.0}}
+        assert D.crop_line(rec, ar=True)["warning"]
+        assert D.crop_line(rec, ar=False)["warning"]
+
+    def test_a_report_without_a_crop_block_says_to_re_run(self):
+        out = D.crop_line({}, ar=True)
+        assert out["available"] is False
+        assert "أعد تشغيل المحرّك" in out["text"]
+
+    def test_the_canopy_check_is_silent_when_it_passes(self):
+        """A check that speaks when it passes is noise."""
+        assert D.crop_check_line({"crop_check": {"status": "OK",
+                                                 "plausible": True}}) == ""
+
+    def test_the_canopy_check_speaks_when_the_label_looks_wrong(self):
+        rec = {"crop_check": {"status": "OK", "plausible": False,
+                              "note": "the canopy implies a crop coefficient "
+                                      "outside the published range",
+                              "note_ar": "الغطاء يشير إلى معامل محصول خارج "
+                                         "المدى المنشور"}}
+        assert D.crop_check_line(rec, ar=True)
+        assert D.crop_check_line(rec, ar=False)
+
+
+class TestTheDiseasePanelDrawsTheArgument:
+    def _panel(self, level, **kw):
+        rec = {"disease": {"claim_level": level, "headline": "h",
+                           "headline_ar": "ه", "note": "n", "note_ar": "ن",
+                           "refusal": "r", "refusal_ar": "ر",
+                           "risk": {"risks": [], "no_model": []}, **kw}}
+        return D.disease_panel(rec)
+
+    def test_only_a_reported_case_is_drawn_red(self):
+        """REPORTED is the only rung that names a disease as present, so it is
+        the only red."""
+        assert self._panel("REPORTED")["status_key"] == "attention"
+
+    def test_a_weather_window_is_never_drawn_red(self):
+        """The whole failure of this product category in one colour. A risk
+        band is a statement about the sky over every field, healthy ones
+        included."""
+        assert self._panel("RISK")["status_key"] != "attention"
+
+    def test_an_anomaly_is_amber_because_it_is_a_place_to_walk_to(self):
+        assert self._panel("ANOMALY")["status_key"] == "watch"
+
+    def test_the_no_model_list_reaches_the_screen(self):
+        """The absence of a fall-armyworm risk line must read as "nothing here
+        predicts it", not as "it is fine"."""
+        rec = {"disease": {"claim_level": "NONE", "headline": "", "note": "",
+                           "risk": {"risks": [], "no_model": [
+                               {"problem": "fall_armyworm", "kind": "pest",
+                                "reason": "migratory"}]}}}
+        out = D.disease_panel(rec)
+        assert [n["key"] for n in out["no_model"]] == ["fall_armyworm"]
+        assert out["no_model"][0]["name"] == "fall armyworm"
+
+    def test_a_report_without_the_layer_says_to_re_run(self):
+        out = D.disease_panel({})
+        assert out["available"] is False
+        assert "re-run" in out["reason"].lower()
+
+    def test_the_anomaly_sentence_names_a_size_and_a_direction(self):
+        rec = {"anomaly": {"status": "OK", "flagged": True, "area_ha": 4.0,
+                           "fraction": 0.1, "where": "north",
+                           "where_ar": "الشمال"}}
+        assert "4.0" in D.anomaly_line(rec)
+        assert "north" in D.anomaly_line(rec)
+        assert "الشمال" in D.anomaly_line(rec, ar=True)
+
+    def test_the_scouting_form_offers_only_this_crop_s_problems(self):
+        """Offering sorghum's anthracnose for a wheat field would invite
+        somebody to record a disease that crop does not get."""
+        wheat = {k for k, _l in D.crop_problem_options("wheat")}
+        assert "wheat_stem_rust" in wheat
+        assert "sorghum_anthracnose" not in wheat
+
+    def test_an_unregistered_crop_offers_nothing_rather_than_a_default_list(self):
+        assert D.crop_problem_options("quinoa") == []
+
+
+class TestTheRunner:
+    def test_the_command_is_built_not_guessed(self):
+        import runner as RUN
+        cmd = RUN.build_command("my.geojson", 2022, "wheat", "out.json")
+        assert "--fields" in cmd and "my.geojson" in cmd
+        assert cmd[cmd.index("--season") + 1] == "2022"
+        assert cmd[cmd.index("--crop") + 1] == "wheat"
+        assert cmd[cmd.index("--out") + 1] == "out.json"
+        assert cmd[0] == sys.executable
+
+    def test_switching_off_the_series_is_passed_through(self):
+        import runner as RUN
+        assert "--no-series" in RUN.build_command("f", 2022, "x", "o", False)
+        assert "--no-series" not in RUN.build_command("f", 2022, "x", "o", True)
+
+    def test_the_estimate_grows_with_the_farm(self):
+        import runner as RUN
+        assert RUN.estimate_seconds(40) > RUN.estimate_seconds(4)
+
+    def test_the_estimate_is_not_zero_for_one_field(self):
+        """A progress figure that runs out before the work does is worse than
+        no figure: the reader concludes the tool has hung and kills it."""
+        import runner as RUN
+        assert RUN.estimate_seconds(1) >= 60
+
+    def test_a_command_that_cannot_start_is_reported_not_raised(self):
+        import runner as RUN
+        out = RUN.run(["definitely-not-a-real-binary-xyz"])
+        assert out["returncode"] != 0
+        assert out["lines"]
+
+    def test_it_runs_a_real_child_and_streams_its_output(self):
+        import runner as RUN
+        seen = []
+        out = RUN.run([sys.executable, "-c", "print('hello'); print('world')"],
+                      on_line=seen.append)
+        assert out["returncode"] == 0
+        assert seen == ["hello", "world"]
+
+    def test_a_failing_child_keeps_its_own_words(self):
+        """An engine that could not authenticate says so in its own words, and
+        those words are what the person needs in order to fix it."""
+        import runner as RUN
+        out = RUN.run([sys.executable, "-c",
+                       "import sys; print('quota exceeded'); sys.exit(3)"])
+        assert out["returncode"] == 3
+        assert "quota exceeded" in out["lines"]

@@ -31,9 +31,15 @@ def main():
     p.add_argument("--season", type=int, default=2022,
                    help="season start year; window runs July to March")
     p.add_argument("--crop", default="default",
-                   help="wheat|sorghum|cotton|groundnut|default")
+                   help="the DEFAULT crop for fields that do not declare one. "
+                        "Any field carrying a `crop` property overrides it. "
+                        "See src/crops.py for the list.")
     p.add_argument("--no-series", action="store_true",
                    help="skip the per-scene time series (faster)")
+    p.add_argument("--observations", default="observations.db",
+                   help="the scouting database. It is the ONLY source that "
+                        "can name a disease; without it the disease layer "
+                        "stops at an unnamed anomaly.")
     p.add_argument("--out", default="farm_report.json")
     a = p.parse_args()
 
@@ -50,7 +56,8 @@ def main():
         sys.exit(1)
 
     agri_engine.analyse_farm(field_fc, a.season, a.out, crop=a.crop,
-                             with_series=not a.no_series)
+                             with_series=not a.no_series,
+                             observations_db=a.observations)
 
 
 if __name__ == "__main__":

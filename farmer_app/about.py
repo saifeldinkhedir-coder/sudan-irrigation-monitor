@@ -109,6 +109,74 @@ SECTIONS = {
         "derived from those two and is labelled ESTIMATED wherever it appears; "
         "a date the farmer enters is labelled REPORTED and stored separately."),
 
+    "crop": (
+        "المحصول",
+        "The crop",
+        "كل حقل يُحلَّل بمحصوله هو، لا بمحصول التشغيل. فالحيازة تدور بين القطن "
+        "والذرة والقمح والفول، وإعطاء قطعة قمح عتبةَ الذرة الحرارية (38 درجة) "
+        "يعطي رقمًا خاطئًا لا رقمًا ناقصًا — القمح يبدأ فقدان الحبّ عند 32. "
+        "ومعاملات المحاصيل من FAO-56 وأرقام منشورة تقليدية، لا من تجارب "
+        "سودانية؛ وعتبة الحرارة صفة صنف بقدر ما هي صفة نوع، وأصناف الجزيرة "
+        "انتُخبت تحت الحرارة قرنًا كاملًا. ومحصول لا تعرفه المكتبة يُحلَّل "
+        "بمعاملات عامّة، ويقول التطبيق ذلك على الحقل نفسه.",
+        "Each field is analysed as ITS OWN crop, not the run's. A tenancy "
+        "rotates cotton, sorghum, wheat and faba bean, and giving a wheat "
+        "block sorghum's 38 degC heat threshold produces a wrong number rather "
+        "than a missing one - wheat starts losing grain at 32. The crop "
+        "parameters are FAO-56 and conventional published figures, not "
+        "Sudanese trial data; a heat threshold is as much a variety property "
+        "as a species one, and Gezira varieties have been selected under heat "
+        "for a century. A crop the library does not know is analysed with "
+        "generic parameters, and the app says so on the field itself."),
+
+    "disease": (
+        "الأمراض والآفات — وما لا يُقال",
+        "Disease and pests - and what is not said",
+        "لا تسمّي هذه الأداة مرضًا من صور الأقمار. وليس هذا نقصًا في البرنامج "
+        "يرفعه نموذج أكبر: Sentinel-2 يرى انعكاسًا في نطاقات عريضة قليلة، "
+        "والمرض ونقص الماء ونقص النيتروجين والملوحة وضرر الآفات والرقاد تحرّك "
+        "هذه النطاقات معًا ولا تفصلها. والطبقة ثلاث درجات: (1) شذوذ داخل "
+        "الحقل — بقعة تختلف عن بقيّة الحقل نفسه، تُعطى مساحةً وجهةً ولا "
+        "تُسمّى سببًا؛ (2) خطر من الطقس — نافذة حرارة ورطوبة مواتية لمُمرِض "
+        "بعينه، وهي وصف للهواء يصدق على كل حقل سليم تحت السماء نفسها؛ "
+        "(3) بلاغ ميداني — وهو وحده ما يسمّي مرضًا موجودًا. ونماذج الطقس "
+        "منشورة من خارج السودان وغير مُتحقَّق منها هنا، وبلل الورقة مُقدَّر "
+        "بالمطر أو بالرطوبة النسبية العظمى، وهو تقدير يخطئ في ليلة عاصفة.",
+        "This tool does not name a disease from satellite imagery. That is not "
+        "a software shortfall a bigger model would lift: Sentinel-2 sees "
+        "reflectance in a few broad bands, and disease, water stress, nitrogen "
+        "deficiency, salinity, pest damage and lodging all move those bands "
+        "together. The layer has three rungs: (1) a within-field ANOMALY - a "
+        "patch unlike the rest of the same field, given a size and a direction "
+        "and no cause; (2) weather RISK - a temperature and wetness window "
+        "favourable to a named pathogen, which describes the air and is "
+        "equally true of every healthy field under that sky; (3) a field "
+        "REPORT - the only rung that names a disease as present. The weather "
+        "models are published from outside Sudan and unvalidated here, and "
+        "leaf wetness is a proxy from rain or maximum relative humidity that "
+        "will be wrong on a windy night."),
+
+    "change": (
+        "ما تغيّر منذ التشغيل السابق",
+        "What changed since the previous run",
+        "الهبوط في NDVI ليس خبرًا سيّئًا بالضرورة: الذرة تنبت في أغسطس وتبلغ "
+        "الذروة في أكتوبر ثمّ تنضج قصدًا حتى الحصاد. وكاشف تغيّر يُعلّم كل "
+        "هبوط سيُعلّم كل حقل في المشروع كل خريف، ويدفن الحقل الوحيد الذي "
+        "يفشل فعلًا. فالهبوط بعد الذروة يُقرأ نضجًا، وقبلها تراجعًا — الرقم "
+        "نفسه وحكمان، والفاصل بينهما تاريخ الإنبات المحسوب أصلًا. والتغيّر "
+        "الأصغر من تشتّت الحقل نفسه يُقرأ ثباتًا. والتواريخ تواريخ المشاهد لا "
+        "تواريخ التشغيل: تشغيلان بفارق أسبوع قد يقومان على مشهدين بفارق شهر.",
+        "A fall in NDVI is not necessarily bad news: sorghum greens up in "
+        "August, peaks in October, and then senesces on purpose all the way to "
+        "harvest. A change detector that flags every decline will flag every "
+        "field on the scheme every autumn, and bury the one field that is "
+        "actually failing. So a fall past the peak is read as ripening and a "
+        "fall before it as a decline - the same number, two verdicts, "
+        "separated by the green-up date the engine already computed. A change "
+        "smaller than the field's own spread is read as steady. Dates are "
+        "scene dates, not run dates: two runs a week apart can rest on scenes "
+        "a month apart."),
+
     "search": (
         "ما يفعله البحث بالمجهول",
         "What the search does with what it does not know",
