@@ -38,6 +38,18 @@
         "docs/sample_results.json"
       ],
       "port": 8502
+    },
+    {
+      "name": "exports",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8504",
+        "--bind",
+        "127.0.0.1"
+      ],
+      "port": 8504
     }
   ]
 }

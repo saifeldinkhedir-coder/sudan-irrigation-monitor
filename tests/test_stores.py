@@ -209,3 +209,98 @@ class TestTheDiseaseLoopClosesEndToEnd:
             assert store.scouting_for("Field B") == []
         finally:
             store.close()
+
+
+class TestTheAccuracyFigureCanActuallyAccumulate:
+    """
+    The agreement rate is the only number in this platform that MEASURES its
+    own accuracy rather than claiming it. Observations were saved with no
+    satellite side, so `satellite_agreement` was NULL on every row ever
+    written: the figure could never leave zero, and the screen said "no clear
+    comparisons yet" for ever without anything indicating a defect.
+    """
+    def _report(self, vigours):
+        import nutrition_climate_ground as ncg  # noqa: F401
+        return {"fields": [
+            {"name": f"F{i}", "crop_health": {"readings": {"vigour": {
+                "status": "OK" if v is not None else "NO DATA", "value": v}}}}
+            for i, v in enumerate(vigours)]}
+
+    def _obs(self, field_id, canopy):
+        import nutrition_climate_ground as ncg
+        return ncg.GroundObservation(
+            obs_id="o", field_id=field_id, observed_at="2022-09-15",
+            lat=14.4, lon=33.1, photo_path="", canopy_condition=canopy)
+
+    def test_a_poor_field_seen_poor_scores_as_agreement(self):
+        import nutrition_climate_ground as ncg
+        r = self._report([0.10, 0.40, 0.50, 0.60, 0.70])
+        out = ncg.score_observation(self._obs("F0", "wilting"), r)
+        assert out["verdict"] == "AGREE"
+
+    def test_a_healthy_field_seen_poor_scores_as_ground_worse(self):
+        import nutrition_climate_ground as ncg
+        r = self._report([0.10, 0.40, 0.50, 0.60, 0.70])
+        out = ncg.score_observation(self._obs("F4", "wilting"), r)
+        assert out["verdict"] == "GROUND_WORSE"
+
+    def test_a_field_the_satellite_could_not_see_is_unclear_with_a_reason(self):
+        """UNCLEAR must be explainable, not merely counted."""
+        import nutrition_climate_ground as ncg
+        r = self._report([None, 0.40, 0.50, 0.60, 0.70])
+        out = ncg.score_observation(self._obs("F0", "healthy"), r)
+        assert out["verdict"] == "UNCLEAR"
+        assert "no usable vigour reading" in out["reason"]
+
+    def test_too_few_fields_for_a_quartile_is_unclear_not_a_guess(self):
+        import nutrition_climate_ground as ncg
+        r = self._report([0.2, 0.5])
+        out = ncg.score_observation(self._obs("F0", "wilting"), r)
+        assert out["verdict"] == "UNCLEAR"
+        assert "lower quartile" in out["reason"]
+
+    def test_the_quartile_needs_four_measured_fields(self):
+        import nutrition_climate_ground as ncg
+        assert ncg.reference_p25(self._report([0.1, 0.2, 0.3])) is None
+        assert ncg.reference_p25(self._report([0.1, 0.2, 0.3, 0.4])) == 0.2
+
+    def test_a_scored_observation_reaches_the_summary(self, tmp_path):
+        """The join that matters: what the form writes is what the rate reads."""
+        import nutrition_climate_ground as ncg
+        store = ncg.ObservationStore(str(tmp_path / "o.db"))
+        try:
+            r = self._report([0.10, 0.40, 0.50, 0.60, 0.70])
+            for i, (fid, canopy) in enumerate((("F0", "wilting"),
+                                               ("F4", "healthy"),
+                                               ("F3", "healthy"))):
+                obs = self._obs(fid, canopy)
+                obs.obs_id = f"o{i}"
+                scored = ncg.score_observation(obs, r)
+                obs.satellite_agreement = scored["verdict"]
+                store.add(obs, satellite=scored["satellite"])
+            summary = store.agreement_summary()
+            assert summary["available"] is True
+            assert summary["total"] == 3
+            assert summary["agreement_rate"] == 1.0
+        finally:
+            store.close()
+
+    def test_unclear_cases_stay_out_of_the_rate(self, tmp_path):
+        """A forced verdict would corrupt the one number that describes the
+        platform's own accuracy."""
+        import nutrition_climate_ground as ncg
+        store = ncg.ObservationStore(str(tmp_path / "o2.db"))
+        try:
+            r = self._report([0.10, 0.40, 0.50, 0.60, 0.70])
+            good = self._obs("F0", "wilting")
+            good.satellite_agreement = ncg.score_observation(good, r)["verdict"]
+            store.add(good)
+            bad = self._obs("F0", "something else entirely")
+            bad.obs_id = "o9"
+            bad.satellite_agreement = ncg.score_observation(bad, r)["verdict"]
+            store.add(bad)
+            summary = store.agreement_summary()
+            assert summary["total"] == 1
+            assert summary["unclear"] == 1
+        finally:
+            store.close()

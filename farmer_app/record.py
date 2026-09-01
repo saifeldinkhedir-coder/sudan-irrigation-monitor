@@ -168,7 +168,26 @@ def _scouting(names, db_dir) -> None:
                     water_reached_field=water_reached,
                     days_since_irrigation=int(days_since),
                     outlet_condition=outlet, notes=notes)
-                store.add(obs)
+                # SCORE IT AT SAVE TIME.
+                #
+                # Observations used to be saved with no satellite side at all,
+                # so satellite_agreement was NULL on every row ever written and
+                # the agreement rate could never leave zero. The platform's one
+                # figure that MEASURES its own accuracy rather than claiming it
+                # was structurally unable to accumulate, and the screen simply
+                # said "no clear comparisons yet" for ever.
+                scored = ncg.score_observation(obs, report)
+                obs.satellite_agreement = scored["verdict"]
+                store.add(obs, satellite=scored["satellite"])
+                if scored["verdict"] == "UNCLEAR" and scored["reason"]:
+                    st.warning("Not scored against the satellite: "
+                               + scored["reason"]
+                               + ". The observation is still saved.")
+                else:
+                    st.caption(f"Satellite comparison: {scored['verdict']}"
+                               f" (NDVI {scored['satellite'].get('NDVI')}"
+                               f" against a farm lower quartile of"
+                               f" {scored['reference_p25']}).")
                 if problem:
                     st.info("This names a problem, so the next engine run will "
                             "report this field as REPORTED rather than as an "

@@ -46,3 +46,7 @@ irrigation_results.json
 # a file that gets committed by a careless `git add -A`.
 my_fields.geojson
 /*_fields.geojson
+
+# Exported reports. Engine output over real boundaries.
+farm_report*.html
+*_report.html

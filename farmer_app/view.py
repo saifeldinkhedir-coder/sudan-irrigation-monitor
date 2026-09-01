@@ -227,54 +227,21 @@ def map_features(report: dict, field_fc: dict, ar: bool = False) -> list:
 # generated text is a trap that fails silently the moment the engine rewords
 # anything, and it fails by showing English inside an Arabic table rather than
 # by raising.
-THERMAL_READING = {
-    "warmer than the surrounding land": ("أدفأ من الأرض المحيطة",
-                                         "warmer than the surrounding land"),
-    "cooler than the surrounding land": ("أبرد من الأرض المحيطة",
-                                         "cooler than the surrounding land"),
-    "close to the surrounding land": ("قريب من الأرض المحيطة",
-                                      "close to the surrounding land"),
-}
+# Engine vocabularies now live in src/vocab.py, so the farmer app and the
+# printable report translate from ONE table. They were duplicated, the report
+# was written later without them, and an Arabic sheet came out of the printer
+# reading "قوام التربة clay". Re-exported under their old names because tests
+# and callers reference them here.
+import os as _os0
+import sys as _sys0
+_sys0.path.insert(0, _os0.path.join(_os0.path.dirname(__file__), "..", "src"))
+import vocab as _vocab      # noqa: E402
 
-SEASON_VERDICT = {
-    "MUCH DRIER than this site's recent seasons":
-        ("أجفّ بكثير من مواسم هذا الموقع الأخيرة",
-         "MUCH DRIER than this site's recent seasons"),
-    "drier than usual": ("أجفّ من المعتاد", "drier than usual"),
-    "near this site's normal": ("قريب من معدّل هذا الموقع",
-                                "near this site's normal"),
-    "wetter than usual": ("أمطر من المعتاد", "wetter than usual"),
-    "MUCH WETTER than usual": ("أمطر بكثير من المعتاد",
-                               "MUCH WETTER than usual"),
-}
-
-RELATIVE_CONDITION = {
-    "BELOW SCHEME NORM": ("دون معدّل المخطط", "BELOW SCHEME NORM"),
-    "WITHIN SCHEME NORM": ("ضمن معدّل المخطط", "WITHIN SCHEME NORM"),
-    "ABOVE SCHEME NORM": ("فوق معدّل المخطط", "ABOVE SCHEME NORM"),
-}
-
-SUFFICIENCY_READING = {
-    "deficient": ("ناقص", "deficient"),
-    "marginal": ("حدّي", "marginal"),
-    "sufficient": ("كافٍ", "sufficient"),
-}
-
-SOIL_TEXTURE = {
-    "clay": ("طين", "clay"),
-    "silty clay": ("طين طَمْيي", "silty clay"),
-    "sandy clay": ("طين رملي", "sandy clay"),
-    "clay loam": ("طَفال طيني", "clay loam"),
-    "silty clay loam": ("طَفال طيني طَمْيي", "silty clay loam"),
-    "sandy clay loam": ("طَفال طيني رملي", "sandy clay loam"),
-    "loam": ("طَفال", "loam"),
-    "silt loam": ("طَفال طَمْيي", "silt loam"),
-    "sandy loam": ("طَفال رملي", "sandy loam"),
-    "silt": ("طَمْي", "silt"),
-    "loamy sand": ("رمل طَفالي", "loamy sand"),
-    "sand": ("رمل", "sand"),
-    "unknown": ("غير معروف", "unknown"),
-}
+THERMAL_READING = _vocab.THERMAL_READING
+SEASON_VERDICT = _vocab.SEASON_VERDICT
+RELATIVE_CONDITION = _vocab.RELATIVE_CONDITION
+SUFFICIENCY_READING = _vocab.SUFFICIENCY_READING
+SOIL_TEXTURE = _vocab.SOIL_TEXTURE
 
 
 def _tr(table: dict, key, ar: bool, default="—") -> str:

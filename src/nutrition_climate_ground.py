@@ -536,6 +536,78 @@ def _b(v: Optional[bool]) -> Optional[int]:
     return None if v is None else int(v)
 
 
+def satellite_for_field(report: dict, field_name: str) -> dict:
+    """What the satellite said about this field, in the shape the comparison
+    wants. Empty where the field is not in the report or was not measured."""
+    for rec in (report or {}).get("fields", []):
+        if rec.get("name") != field_name:
+            continue
+        vig = (rec.get("crop_health") or {}).get("readings", {}).get(
+            "vigour", {})
+        out = {}
+        if vig.get("status") == "OK":
+            out["NDVI"] = vig.get("value")
+        nut = rec.get("nutrition") or {}
+        if nut.get("cire") is not None:
+            out["CIre"] = nut.get("cire")
+        return out
+    return {}
+
+
+def reference_p25(report: dict) -> Optional[float]:
+    """
+    The 25th percentile of vigour across the fields in this report.
+
+    This is the line the agreement verdict calls "poor". It is the FARM's own
+    lower quartile, not a scheme-wide norm, and it means what it says: a field
+    in the worst quarter of the fields measured on the same dates by the same
+    instrument. On a farm of three fields it is nearly meaningless, which is
+    why the caller is given None rather than a number when there are too few.
+    """
+    vals = sorted(
+        v for v in ((rec.get("crop_health") or {}).get("readings", {})
+                    .get("vigour", {}).get("value")
+                    for rec in (report or {}).get("fields", []))
+        if v is not None)
+    if len(vals) < 4:
+        return None
+    idx = max(0, int(round(0.25 * (len(vals) - 1))))
+    return vals[idx]
+
+
+def score_observation(obs: GroundObservation, report: dict) -> dict:
+    """
+    Work out whether the satellite agreed with the observer, at save time.
+
+    WHY THIS FUNCTION HAD TO EXIST
+    The scouting form saved observations with no satellite side at all, so
+    `satellite_agreement` was NULL on every row ever written and the agreement
+    rate could never accumulate. The platform's single most credible figure -
+    the one that describes its own accuracy rather than claiming it - was
+    structurally unable to leave zero, and nothing said so: the screen simply
+    reported "no clear comparisons yet" for ever.
+
+    Returns the verdict and everything that went into it, so an UNCLEAR can be
+    explained rather than merely counted.
+    """
+    sat = satellite_for_field(report, obs.field_id)
+    p25 = reference_p25(report)
+    verdict = dl.agreement_verdict(sat.get("NDVI"), obs.canopy_condition, p25)
+    why = ""
+    if verdict == "UNCLEAR":
+        if sat.get("NDVI") is None:
+            why = ("the satellite has no usable vigour reading for this field, "
+                   "so there is nothing to compare the observation with")
+        elif p25 is None:
+            why = ("fewer than four measured fields in this report, so there "
+                   "is no lower quartile to call 'poor'")
+        else:
+            why = ("the canopy condition recorded is not one the comparison "
+                   "can score - use healthy, patchy, yellowing or wilting")
+    return {"verdict": verdict, "satellite": sat, "reference_p25": p25,
+            "canopy_condition": obs.canopy_condition, "reason": why}
+
+
 def compare_with_satellite(obs: GroundObservation, satellite_indices: dict,
                            scheme_p25: float) -> str:
     """Did the satellite see what the observer saw? Delegates the verdict to the
