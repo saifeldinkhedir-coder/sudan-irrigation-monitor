@@ -40,3 +40,9 @@ irrigation_results.json
 # the measurements are real and the boundaries are invented.
 !docs/sample_results.json
 !docs/farm_report_demo.json
+
+# Field boundaries drawn in the app. Real polygons are somebody's tenancy and
+# their coordinates; the save button writes here by default, so it must not be
+# a file that gets committed by a careless `git add -A`.
+my_fields.geojson
+/*_fields.geojson
