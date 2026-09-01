@@ -22,5 +22,12 @@ headless = true
 # Override deliberately (--server.address 0.0.0.0) only behind authentication.
 address = "127.0.0.1"
 
+# Streamlit prints a nine-line warning on every start telling you to do exactly
+# this. Bound to loopback, the only origin that can reach the app is this
+# machine, so restricting cross-origin access costs nothing and buys back a
+# clean startup. A warning that appears every single time is a warning nobody
+# reads, including the ones that matter.
+enableCORS = true
+
 [browser]
 gatherUsageStats = false

@@ -60,6 +60,11 @@ ITERATIONS = 240_000
 # session the gate stops answering. It is not rate limiting for the internet.
 MAX_ATTEMPTS = 8
 
+# Whether the open-deployment warning has already gone to the terminal in this
+# process. Streamlit re-runs the script on every interaction; without this the
+# warning repeats until it scrolls everything else away.
+_WARNED = False
+
 OPEN_WARNING = (
     "No users file, so this deployment is OPEN: anyone who can reach this "
     "address can read every field. Create one with "
@@ -186,12 +191,24 @@ def gate(path: str = USERS_FILE, ar: bool = False,
     """
     users = load_users(path)
     if users is None:
-        # `quiet` sends the warning to the console instead of the sidebar.
-        # It is addressed to whoever DEPLOYS this, who reads it once at
-        # startup; a farmer meeting it every session is being shouted at about
-        # a decision they did not make. The About page carries it too.
+        # `quiet` sends the warning to the terminal instead of the sidebar.
+        # It is addressed to whoever DEPLOYS this; a farmer meeting it every
+        # session is being shouted at about a decision they did not make.
+        #
+        # ONCE PER PROCESS. Streamlit re-executes the whole script on every
+        # interaction, so a bare print() here repeated the warning on every
+        # click until it filled the terminal - which is how a warning stops
+        # being read. Moving noise out of the sidebar and into the log is not
+        # a fix if it is still noise.
         if quiet:
-            print("SECURITY: " + OPEN_WARNING)
+            global _WARNED
+            if not _WARNED:
+                _WARNED = True
+                # Flushed: stdout is a pipe rather than a terminal whenever
+                # this is run under a supervisor, and a security warning that
+                # sits in a buffer until the process exits is a warning that
+                # arrives after it could have been acted on.
+                print("\nSECURITY: " + OPEN_WARNING + "\n", flush=True)
         else:
             st.sidebar.warning(OPEN_WARNING_AR if ar else OPEN_WARNING)
         return None

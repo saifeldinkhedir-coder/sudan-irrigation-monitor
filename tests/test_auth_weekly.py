@@ -98,6 +98,47 @@ class TestTheUsersFile:
         assert A.authenticate("x", "y", str(tmp_path / "none.json")) is None
 
 
+class TestTheWarningIsPrintedOnceNotOnEveryRerun:
+    """
+    Streamlit re-executes the whole script on every interaction, so a bare
+    print() in the gate repeated the open-deployment warning on every click
+    until it filled the terminal - nine copies before the user had even
+    clicked anything.
+
+    Moving noise out of the sidebar and into the log is not a fix if it is
+    still noise. A warning that appears every single time is a warning nobody
+    reads, including the ones that matter.
+    """
+    def _run(self, times, tmp_path):
+        import contextlib
+        import io as _io
+        A._WARNED = False
+        buf = _io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            for _ in range(times):
+                A.gate(path=str(tmp_path / "none.json"), quiet=True)
+        return buf.getvalue()
+
+    def test_it_is_said_once_however_many_reruns(self, tmp_path):
+        out = self._run(9, tmp_path)
+        assert out.count("SECURITY") == 1
+
+    def test_it_is_still_said_at_all(self, tmp_path):
+        """Quieting a warning into silence would be the other failure."""
+        out = self._run(1, tmp_path)
+        assert "OPEN" in out
+
+    def test_the_command_it_recommends_actually_runs(self):
+        """A warning that ends in a command nobody can run is half a warning."""
+        import subprocess
+        import sys
+        assert "python -m farmer_app.auth add" in A.OPEN_WARNING
+        root = os.path.join(os.path.dirname(__file__), "..")
+        r = subprocess.run([sys.executable, "-m", "farmer_app.auth", "list"],
+                           cwd=root, capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr[-400:]
+
+
 class TestScoping:
     def test_a_user_with_no_list_sees_every_farm(self):
         assert A.may_see({"name": "a", "farms": None}, "any farm") is True
