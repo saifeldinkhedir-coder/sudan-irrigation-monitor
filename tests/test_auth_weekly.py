@@ -139,6 +139,44 @@ class TestTheWarningIsPrintedOnceNotOnEveryRerun:
         assert r.returncode == 0, r.stderr[-400:]
 
 
+class TestTheUsersFileCannotBeCommitted:
+    """
+    It holds password hashes and which farms each account may see. A hash is
+    not a password, but it is a thing an attacker can work on offline at
+    leisure, and the scoping tells them the shape of the deployment. It is also
+    per-machine configuration rather than source.
+
+    This was missed when the gate was written: the file the tool tells people
+    to create was, until now, one `git add -A` away from a public repository.
+    """
+    def test_git_ignores_the_users_file(self):
+        import subprocess
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        r = subprocess.run(["git", "check-ignore", "-q", "users.json"],
+                           cwd=root, capture_output=True)
+        assert r.returncode == 0, "users.json is not gitignored"
+
+    def test_the_other_secret_stores_are_ignored_too(self):
+        """The same reasoning covers everything holding real people's data."""
+        import subprocess
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        for path in ("users.json", "farm_records.db", "observations.db",
+                     "calibration.db", "observations/photo.jpg",
+                     "credentials.json", ".env"):
+            r = subprocess.run(["git", "check-ignore", "-q", path],
+                               cwd=root, capture_output=True)
+            assert r.returncode == 0, f"{path} is not gitignored"
+
+    def test_no_users_file_is_tracked_right_now(self):
+        import subprocess
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        r = subprocess.run(["git", "ls-files"], cwd=root,
+                           capture_output=True, text=True)
+        tracked = [f for f in r.stdout.splitlines()
+                   if "users" in f.lower() and f.endswith(".json")]
+        assert not tracked, f"tracked users files: {tracked}"
+
+
 class TestScoping:
     def test_a_user_with_no_list_sees_every_farm(self):
         assert A.may_see({"name": "a", "farms": None}, "any farm") is True

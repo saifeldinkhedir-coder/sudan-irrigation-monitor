@@ -50,3 +50,10 @@ my_fields.geojson
 # Exported reports. Engine output over real boundaries.
 farm_report*.html
 *_report.html
+
+# The users file: password hashes and which farms each account may see.
+# Never committed. A hash is not a password, but it is a thing to attack
+# offline at leisure, and the farm scoping tells an attacker the shape of
+# the deployment. It is also per-machine configuration, not source.
+users.json
+*users*.json
