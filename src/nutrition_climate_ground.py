@@ -448,6 +448,23 @@ class ObservationStore:
     where the indicators work - the difference between claiming accuracy and
     having measured it."""
 
+    # Columns added after the first release. `CREATE TABLE IF NOT EXISTS` does
+    # nothing at all to a table that already exists, so a database created
+    # before one of these was added keeps its old shape for ever and the first
+    # query that mentions the new column raises `no such column`.
+    #
+    # This was found by a live run, not by the test suite: every test builds a
+    # fresh database in a temporary directory and therefore always gets the
+    # newest schema. The only machine that could see it was one that had
+    # actually been used - which is every real one.
+    #
+    # The failure was also badly placed. It came from inside the per-field
+    # loop, so it killed the run AFTER minutes of Earth Engine work. Migration
+    # happens when the store is opened, which is before any of that.
+    MIGRATIONS = {
+        "observations": {"problem": "TEXT"},
+    }
+
     def __init__(self, path: str = "observations.db"):
         self.conn = sqlite3.connect(path)
         self.conn.execute("""
@@ -463,7 +480,38 @@ class ObservationStore:
                 outlet_condition TEXT, notes TEXT,
                 satellite_ndvi REAL, satellite_cire REAL, satellite_agreement TEXT
             )""")
+        self.migrate()
         self.conn.commit()
+
+    def migrate(self) -> list:
+        """
+        Bring an older database up to the current schema. Returns what it added.
+
+        Additive only: new nullable columns. Existing rows keep every value
+        they had and gain NULL for the new column, which is the truthful answer
+        - nobody recorded a problem on an observation saved before there was a
+        field for one.
+
+        Nothing here drops, renames or rewrites a column. A migration that can
+        lose a season of somebody's scouting records is not worth the tidiness
+        it buys, and this one runs unattended every time the store is opened.
+        """
+        added = []
+        for table, cols in self.MIGRATIONS.items():
+            have = {r[1] for r in
+                    self.conn.execute(f"PRAGMA table_info({table})")}
+            if not have:
+                continue                       # the table itself is new
+            for name, decl in cols.items():
+                if name not in have:
+                    self.conn.execute(
+                        f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+                    added.append(f"{table}.{name}")
+        if added:
+            self.conn.commit()
+            print(f"observations.db: added {', '.join(added)} "
+                  "(existing rows keep their values)")
+        return added
 
     def add(self, obs: GroundObservation, satellite: Optional[dict] = None) -> str:
         sat = satellite or {}

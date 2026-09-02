@@ -668,6 +668,7 @@ CLAIM_LEVEL = {
     "REPORTED": ("مُبلَّغ عنه", "reported"),
     "ANOMALY": ("شذوذ داخل الحقل", "within-field anomaly"),
     "RISK": ("خطر من الطقس", "weather risk"),
+    "SEASON RISK": ("نافذة طقس خلال الموسم", "weather window during the season"),
     "NONE": ("لا شيء", "nothing"),
 }
 
@@ -677,7 +678,8 @@ CLAIM_LEVEL = {
 # about the sky, not about this field. Drawing a weather window in red would be
 # the whole failure of this product category in one colour.
 CLAIM_STATUS = {"REPORTED": "attention", "ANOMALY": "watch",
-                "RISK": "unmeasured", "NONE": "ok"}
+                "RISK": "unmeasured", "SEASON RISK": "unmeasured",
+                "NONE": "ok"}
 
 RISK_BAND = {
     "FAVOURABLE": ("مواتٍ", "favourable"),

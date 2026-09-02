@@ -92,6 +92,10 @@ class Checkpoint:
         self.fp = fp
         self.enabled = enabled
         self.records: list = []
+        # How many came back from a previous attempt. Counted at resume time,
+        # because self.records grows as the run continues - by the end it
+        # holds the recovered fields AND every new one.
+        self.n_resumed = 0
         self.status = "FRESH"
         self.note = ""
         self.note_ar = ""
@@ -136,6 +140,7 @@ class Checkpoint:
             return {}
 
         self.records = list(data.get("fields", []))
+        self.n_resumed = len(self.records)
         self.status = "RESUMED"
         n = len(self.records)
         self.note = (f"resuming: {n} field"
@@ -175,9 +180,21 @@ class Checkpoint:
 
     # ------------------------------------------------------------- reporting
     def describe(self) -> dict:
+        """
+        What the checkpoint did, for the report.
+
+        `n_recovered` counts only fields that came BACK from a previous
+        attempt. It used to be len(self.records), which after a successful
+        fresh run is every field in the farm - so a report that had resumed
+        nothing said it had recovered four fields, and a reader checking
+        whether a run was clean would have been told the opposite of the
+        truth.
+        """
+        recovered = self.n_resumed
         return {"status": self.status, "note": self.note,
                 "note_ar": self.note_ar, "path": self.path,
-                "n_recovered": len(self.records)}
+                "n_recovered": recovered,
+                "n_written": len(self.records)}
 
 
 def find_partial(out_json: str) -> Optional[dict]:

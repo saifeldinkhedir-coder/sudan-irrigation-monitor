@@ -430,6 +430,24 @@ PROBLEMS = {
 RISK_BANDS = ("NOT FAVOURABLE", "MARGINAL", "FAVOURABLE")
 
 
+def li(name: str) -> str:
+    """
+    Attach the Arabic preposition "li-" to a name correctly.
+
+    Arabic prefixes join the following word: li + عفن is لعفن, written as one
+    word. The tatweel form لـ exists for the case where the following text
+    CANNOT join - Latin script, a numeral, a dataset name - as in لـSentinel-2.
+
+    The first live run printed "لـعفن حبوب الذرة", which is the tatweel form
+    in front of an Arabic word: it renders as a stranded connector and reads,
+    to an Arabic speaker, the way "t he grain mould" reads in English. Small,
+    and this application's whole first language.
+    """
+    if not name:
+        return "لـ"
+    return ("ل" if "؀" <= name[0] <= "ۿ" else "لـ") + name
+
+
 def label(key: str, ar: bool = False) -> str:
     p = PROBLEMS.get(key)
     if not p:
@@ -563,8 +581,91 @@ def infection_risk(key: str, t_min: Sequence, t_max: Sequence,
     }
 
 
+def season_scan(key: str, t_min: Sequence, t_max: Sequence, t_dew: Sequence,
+                rain: Sequence, start_date: Optional[str] = None) -> dict:
+    """
+    The worst window this problem had ALL SEASON, and when it opened.
+
+    WHY THIS EXISTS SEPARATELY FROM infection_risk
+    ----------------------------------------------
+    `infection_risk` looks at the trailing window - the last fortnight - which
+    is the right question while a crop is standing: is it favourable NOW,
+    should somebody walk out this week.
+
+    Run over a season that has already finished, that same question is nearly
+    useless, and the first live run showed exactly why: the season window ends
+    on 31 March, late March in Gezira is hot and dry, and every disease came
+    back 0/14 days. All correct, and all uninformative - the answer described
+    the dry season, not the crop.
+
+    The retrospective question is different: did a favourable window open at
+    any point while the crop was growing, and when. That is the same model
+    slid across the season rather than read at its end. It says nothing about
+    whether infection HAPPENED - see the refusal at the top of this module -
+    but "conditions were favourable for six days in the fortnight ending 12
+    September" is something a person can check against what they saw, and
+    something to plan the next season's scouting around.
+    """
+    entry = PROBLEMS.get(key)
+    if not entry or not entry.get("weather_model"):
+        return {"status": "NO MODEL", "problem": key}
+    model = entry["weather_model"]
+    n = min(len(t_min or []), len(t_max or []))
+    if n == 0:
+        return {"status": "NOT AVAILABLE", "problem": key,
+                "reason": "no daily weather series"}
+
+    # Favourability per day, computed once, then summed over each window.
+    fav = [favourable_day(
+        t_min[i], t_max[i],
+        t_dew[i] if t_dew and i < len(t_dew) else None,
+        rain[i] if rain and i < len(rain) else None, model) for i in range(n)]
+
+    width = int(model["window_days"])
+    best_count, best_end = 0, None
+    running = 0
+    for i in range(n):
+        running += 1 if fav[i] else 0
+        if i >= width:
+            running -= 1 if fav[i - width] else 0
+        if running > best_count:
+            best_count, best_end = running, i
+
+    need = int(model["days_needed"])
+    opened = best_count >= need
+    out = {
+        "status": "OK", "problem": key, "kind": entry["kind"],
+        "opened": opened,
+        "worst_window_days": best_count, "days_needed": need,
+        "window_days": width, "total_favourable_days": sum(fav),
+        "season_days": n,
+        "basis": entry["basis"],
+        "claim": ("Conditions favourable to infection occurred during the "
+                  "season. NOT a finding that infection happened, and not "
+                  "specific to this field - it describes the air over the "
+                  "area."),
+        "claim_ar": ("حدثت خلال الموسم ظروف مواتية للإصابة. وليس هذا كشفًا "
+                     "بأنّ الإصابة وقعت، ولا هو خاصّ بهذا الحقل — بل يصف "
+                     "الهواء فوق المنطقة."),
+        "scout_for": entry["scout_en"], "scout_for_ar": entry["scout_ar"],
+    }
+    if best_end is not None and start_date:
+        from datetime import datetime, timedelta
+        try:
+            d0 = datetime.strptime(start_date, "%Y-%m-%d")
+            out["worst_window_end"] = (d0 + timedelta(days=best_end)).date(
+                ).isoformat()
+            out["worst_window_start"] = (
+                d0 + timedelta(days=max(0, best_end - width + 1))).date(
+                ).isoformat()
+        except ValueError:
+            pass
+    return out
+
+
 def crop_risk(crop, t_min, t_max, t_dew, rain,
-              as_of_index: Optional[int] = None) -> dict:
+              as_of_index: Optional[int] = None,
+              start_date: Optional[str] = None) -> dict:
     """Every registered problem for a crop, ordered worst first.
 
     Problems with no weather model are returned too, in `no_model`, so the
@@ -577,12 +678,23 @@ def crop_risk(crop, t_min, t_max, t_dew, rain,
             scored.append(r)
         elif r.get("status") == "NO MODEL":
             no_model.append(r)
+    # The season scan runs alongside the trailing window. On a report for a
+    # season that has finished, the trailing window describes the dry season
+    # and the scan describes the crop - and which of the two is useful depends
+    # entirely on when the run happened, which the engine cannot know.
+    scans = [season_scan(key, t_min, t_max, t_dew, rain, start_date)
+             for key, _e in for_crop(crop)]
+    scans = [x for x in scans if x.get("status") == "OK"]
+    scans.sort(key=lambda x: -x.get("worst_window_days", 0))
+
     order = {b: i for i, b in enumerate(reversed(RISK_BANDS))}
     scored.sort(key=lambda r: (order.get(r["band"], 9),
                                -r.get("favourable_days", 0)))
     return {"crop": C.resolve(crop), "risks": scored, "no_model": no_model,
+            "season": scans,
             "n_favourable": sum(1 for r in scored
-                                if r["band"] == "FAVOURABLE")}
+                                if r["band"] == "FAVOURABLE"),
+            "n_opened_in_season": sum(1 for x in scans if x.get("opened"))}
 
 
 # ==============================================================================
@@ -757,11 +869,50 @@ def diagnose(anomaly: Optional[dict] = None, risk: Optional[dict] = None,
                          + (f" and {others} other" + ("s" if others > 1 else "")
                             if others else "")),
             "headline_ar": (f"طقس الأيام الـ{top['window_days']} الماضية كان "
-                            f"مواتيًا لـ{label(top['problem'], ar=True)}"
+                            f"مواتيًا {li(label(top['problem'], ar=True))}"
                             + (f" و{others} غيره" if others else "")),
             "note": top["claim"], "note_ar": top["claim_ar"],
             "next_step": f"Scout for: {top['scout_for']}",
             "next_step_ar": f"ابحث في الحقل عن: {top['scout_for_ar']}",
+        }
+
+    # A window that opened EARLIER IN THE SEASON, when nothing is favourable
+    # now. Weaker than RISK because it is retrospective - it cannot tell
+    # anybody to walk out this week - and still the most informative thing
+    # available on a report for a season that has finished.
+    #
+    # This branch exists because the first live run made the NONE text FALSE.
+    # It said "no weather window opened" over a season in which three had:
+    # thirteen of fourteen days favourable to anthracnose in the fortnight
+    # ending 20 August, which is the Gezira rains. A summary that contradicts
+    # the data beneath it is worse than no summary.
+    opened = sorted([s for s in (risk.get("season") or []) if s.get("opened")],
+                    key=lambda s: -s.get("worst_window_days", 0))
+    if opened:
+        top = opened[0]
+        when = top.get("worst_window_end")
+        others = len(opened) - 1
+        return {
+            "claim_level": "SEASON RISK", "problem": top["problem"],
+            "provenance": "MODELLED",
+            "headline": (
+                f"weather favourable to {label(top['problem'])} occurred "
+                f"during the season"
+                + (f", ending {when}" if when else "")
+                + (f", and {others} other" + ("s" if others > 1 else "")
+                   if others else "")),
+            "headline_ar": (
+                f"حدث خلال الموسم طقس مواتٍ "
+                f"{li(label(top['problem'], ar=True))}"
+                + (f"، انتهى في {when}" if when else "")
+                + (f"، و{others} غيره" if others else "")),
+            "note": top["claim"], "note_ar": top["claim_ar"],
+            "next_step": ("Nothing to do about it now - the window has closed. "
+                          "It is what to scout for at the same point next "
+                          f"season: {top['scout_for']}"),
+            "next_step_ar": ("لا شيء يُفعل الآن — أُغلقت النافذة. وهذا ما "
+                             "يُكشف عنه في الوقت نفسه من الموسم القادم: "
+                             f"{top['scout_for_ar']}"),
         }
 
     return {

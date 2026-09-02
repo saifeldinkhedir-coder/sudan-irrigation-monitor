@@ -304,3 +304,127 @@ class TestTheAccuracyFigureCanActuallyAccumulate:
             assert summary["unclear"] == 1
         finally:
             store.close()
+
+
+class TestAnOlderDatabaseIsMigratedNotBroken:
+    """
+    `CREATE TABLE IF NOT EXISTS` does nothing at all to a table that already
+    exists. A database created before the `problem` column was added kept its
+    old shape for ever, and the first query mentioning the new column raised
+    `no such column: problem`.
+
+    The whole suite missed it, and the reason is worth remembering: every test
+    builds a fresh database in a temporary directory, so every test always gets
+    the newest schema. The only machine that could see this was one that had
+    actually been used - which is every real one. It took a live run to find.
+    """
+    OLD_SCHEMA = """
+        CREATE TABLE observations (
+            obs_id TEXT PRIMARY KEY, field_id TEXT NOT NULL,
+            observed_at TEXT NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL,
+            photo_path TEXT NOT NULL, source TEXT NOT NULL, observer TEXT,
+            crop TEXT, growth_stage TEXT, canopy_condition TEXT,
+            weeds_present INTEGER, weed_cover_pct REAL,
+            pest_damage INTEGER, disease_signs INTEGER,
+            soil_surface TEXT, salinity_signs INTEGER,
+            water_reached_field INTEGER, days_since_irrigation INTEGER,
+            outlet_condition TEXT, notes TEXT,
+            satellite_ndvi REAL, satellite_cire REAL, satellite_agreement TEXT
+        )"""
+
+    def _old_db(self, tmp_path, rows=1):
+        import sqlite3
+        p = str(tmp_path / "observations.db")
+        conn = sqlite3.connect(p)
+        conn.execute(self.OLD_SCHEMA)
+        for i in range(rows):
+            conn.execute(
+                "INSERT INTO observations (obs_id, field_id, observed_at, lat,"
+                " lon, photo_path, source, observer, canopy_condition,"
+                " satellite_agreement) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (f"old{i}", "Field 1", "2022-08-01", 14.4, 33.1,
+                 f"observations/old{i}.jpg", "phone", "ali", "wilting",
+                 "AGREE"))
+        conn.commit()
+        conn.close()
+        return p
+
+    def test_opening_an_old_database_adds_the_missing_column(self, tmp_path):
+        import nutrition_climate_ground as ncg
+        p = self._old_db(tmp_path)
+        store = ncg.ObservationStore(p)
+        try:
+            cols = {r[1] for r in
+                    store.conn.execute("PRAGMA table_info(observations)")}
+            assert "problem" in cols
+        finally:
+            store.close()
+
+    def test_the_query_that_crashed_now_works(self, tmp_path):
+        """`no such column: problem`, from inside the per-field loop, after
+        minutes of Earth Engine work."""
+        import nutrition_climate_ground as ncg
+        store = ncg.ObservationStore(self._old_db(tmp_path))
+        try:
+            assert store.scouting_for("Field 1") == []
+        finally:
+            store.close()
+
+    def test_existing_rows_keep_every_value_they_had(self, tmp_path):
+        """A migration that can lose a season of somebody's scouting records is
+        not worth the tidiness it buys."""
+        import nutrition_climate_ground as ncg
+        store = ncg.ObservationStore(self._old_db(tmp_path, rows=3))
+        try:
+            rows = store.conn.execute(
+                "SELECT obs_id, observer, canopy_condition, photo_path,"
+                " problem FROM observations ORDER BY obs_id").fetchall()
+            assert len(rows) == 3
+            assert rows[0][1] == "ali"
+            assert rows[0][2] == "wilting"
+            assert rows[0][3] == "observations/old0.jpg"
+            # NULL is the truthful answer: nobody recorded a problem on an
+            # observation saved before there was a field for one.
+            assert rows[0][4] is None
+        finally:
+            store.close()
+
+    def test_the_accuracy_figure_survives_the_migration(self, tmp_path):
+        import nutrition_climate_ground as ncg
+        store = ncg.ObservationStore(self._old_db(tmp_path, rows=4))
+        try:
+            s = store.agreement_summary()
+            assert s["available"] is True and s["total"] == 4
+        finally:
+            store.close()
+
+    def test_migrating_twice_changes_nothing(self, tmp_path):
+        import nutrition_climate_ground as ncg
+        store = ncg.ObservationStore(self._old_db(tmp_path))
+        try:
+            assert store.migrate() == []
+        finally:
+            store.close()
+
+    def test_a_new_database_needs_no_migration(self, tmp_path):
+        import nutrition_climate_ground as ncg
+        store = ncg.ObservationStore(str(tmp_path / "fresh.db"))
+        try:
+            assert store.migrate() == []
+        finally:
+            store.close()
+
+    def test_a_migrated_database_accepts_a_named_problem(self, tmp_path):
+        """The end-to-end point: an old database can still lift the disease
+        ladder to REPORTED."""
+        import nutrition_climate_ground as ncg
+        store = ncg.ObservationStore(self._old_db(tmp_path))
+        try:
+            store.add(ncg.GroundObservation(
+                obs_id="new", field_id="Field 1", observed_at="2022-09-15",
+                lat=14.4, lon=33.1, photo_path="",
+                problem="sorghum_anthracnose", observer="ali"))
+            assert [r["problem"] for r in store.scouting_for("Field 1")] \
+                == ["sorghum_anthracnose"]
+        finally:
+            store.close()

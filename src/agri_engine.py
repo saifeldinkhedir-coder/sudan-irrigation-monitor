@@ -567,10 +567,27 @@ def anomaly_scan(field_geom, field_geometry_dict: Optional[dict],
         patch = ([ll.get("longitude"), ll.get("latitude")]
                  if ll.get("longitude") is not None else None)
 
+        # NO PIXEL MATCHED IS NOT THE SAME AS COULD NOT COMPUTE.
+        #
+        # A sum over a fully masked image returns null, not zero: Earth Engine
+        # has nothing to add up. Passing that null through as "no anomaly area
+        # computed" turned the healthiest possible answer - not one pixel in
+        # this field is below its own threshold - into a failure message, on
+        # two of the four fields in the first live run.
+        #
+        # The distribution above is what separates the two. If the percentiles
+        # came back, the scan ran and saw the field; a null area then means
+        # zero anomalous pixels. If the percentiles were null, nothing was
+        # seen, and that is the branch above which has already returned.
+        area_ha = (area_m2 / 10000.0) if area_m2 is not None else 0.0
+
         out = dz.anomaly_patch(
-            (area_m2 / 10000.0) if area_m2 else None,
-            (field_m2 / 10000.0) if field_m2 else None,
+            area_ha, (field_m2 / 10000.0) if field_m2 else None,
             centre, patch)
+        if area_m2 is None:
+            out["reason"] = ("no pixel in this field is below its own "
+                             "threshold")
+            out["reason_ar"] = ("لا بكسل في هذا الحقل دون عتبته هو")
         out["threshold"] = thr["threshold"]
         out["distribution"] = {"p16": p16, "p50": p50, "p84": p84}
         out["robust_sigma"] = thr["robust_sigma"]
@@ -607,7 +624,7 @@ def disease_layer(field_geom, start: str, end: str, crop: str,
         t_dew = [None if v is None else v - k for v in series.get("t_dew") or []]
         wet = rain if rain is not None else (
             daily_rain_mm(field_geom, start, end) or [])
-        risk = dz.crop_risk(crop, t_min, t_max, t_dew, wet)
+        risk = dz.crop_risk(crop, t_min, t_max, t_dew, wet, start_date=start)
     elif agro is None:
         reason = "agronomy module unavailable, so no weather series"
     else:

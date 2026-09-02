@@ -439,3 +439,175 @@ class TestTheRefusalIsStatedInBothLanguages:
     def test_it_names_the_cost_to_the_farmer(self):
         assert "spray" in DZ.REFUSAL
         assert "رشّة" in DZ.REFUSAL_AR
+
+
+class TestTheSeasonScan:
+    """
+    The trailing window is the right question while a crop is standing: is it
+    favourable NOW. Run over a season that has already finished it is nearly
+    useless, and the first live run showed exactly why - the season window ends
+    on 31 March, late March in Gezira is hot and dry, and every disease came
+    back 0 of 14 days. All correct, and all uninformative: the answer described
+    the dry season, not the crop.
+    """
+    def _season(self, wet_from, wet_to, n=270):
+        """A dry season with one wet spell in the middle of it."""
+        tn, tx, td, r = [25.0] * n, [45.0] * n, [2.0] * n, [0.0] * n
+        for i in range(wet_from, wet_to):
+            tx[i], td[i], r[i] = 32.0, 24.0, 6.0
+        return tn, tx, td, r
+
+    def test_a_window_in_the_middle_of_the_season_is_found(self):
+        out = DZ.season_scan("sorghum_anthracnose", *self._season(60, 80))
+        assert out["opened"] is True
+        assert out["worst_window_days"] >= out["days_needed"]
+
+    def test_the_trailing_window_misses_exactly_that(self):
+        """Both are correct; they answer different questions."""
+        args = self._season(60, 80)
+        assert DZ.infection_risk("sorghum_anthracnose", *args)["band"] \
+            == "NOT FAVOURABLE"
+        assert DZ.season_scan("sorghum_anthracnose", *args)["opened"] is True
+
+    def test_it_says_when_the_window_was(self):
+        """"Six days in the fortnight ending 12 September" is something a
+        person can check against what they saw."""
+        out = DZ.season_scan("sorghum_anthracnose", *self._season(60, 80),
+                             start_date="2022-07-01")
+        assert out["worst_window_end"].startswith("2022-09")
+        assert out["worst_window_start"] < out["worst_window_end"]
+
+    def test_a_season_with_no_wet_spell_opens_nothing(self):
+        out = DZ.season_scan("sorghum_anthracnose", *self._season(0, 0))
+        assert out["opened"] is False
+        assert out["worst_window_days"] == 0
+        assert out["total_favourable_days"] == 0
+
+    def test_it_still_refuses_to_claim_infection_happened(self):
+        out = DZ.season_scan("sorghum_anthracnose", *self._season(60, 80))
+        assert "NOT a finding that infection happened" in out["claim"]
+        assert "ليس هذا كشفًا" in out["claim_ar"]
+
+    def test_a_problem_with_no_weather_model_is_not_scanned(self):
+        assert DZ.season_scan("striga", *self._season(60, 80))["status"] \
+            == "NO MODEL"
+
+    def test_no_series_is_not_a_scan_of_zero(self):
+        assert DZ.season_scan("sorghum_anthracnose", [], [], [], [])["status"] \
+            == "NOT AVAILABLE"
+
+    def test_crop_risk_carries_both_readings(self):
+        args = self._season(60, 80)
+        out = DZ.crop_risk("sorghum", *args, start_date="2022-07-01")
+        assert out["n_favourable"] == 0          # nothing favourable NOW
+        assert out["n_opened_in_season"] >= 1    # but something did open
+        assert out["season"][0]["worst_window_days"] > 0
+
+    def test_the_worst_window_leads_the_season_list(self):
+        args = self._season(60, 90)
+        scans = DZ.crop_risk("sorghum", *args)["season"]
+        counts = [x["worst_window_days"] for x in scans]
+        assert counts == sorted(counts, reverse=True)
+
+
+class TestASeasonWindowReachesTheClaim:
+    """
+    The first live run made the NONE text FALSE. It said "no weather window
+    opened" over a season in which three had - thirteen of fourteen days
+    favourable to anthracnose in the fortnight ending 20 August, which is
+    simply the Gezira rains.
+
+    A summary that contradicts the data beneath it is worse than no summary,
+    and it is the failure mode a reader is least able to catch: the detail is
+    right there and they have no reason to look at it.
+    """
+    def _season(self, wet_from=60, wet_to=85, n=270):
+        tn, tx, td, r = [25.0] * n, [45.0] * n, [2.0] * n, [0.0] * n
+        for i in range(wet_from, wet_to):
+            tx[i], td[i], r[i] = 32.0, 24.0, 6.0
+        return DZ.crop_risk("sorghum", tn, tx, td, r, start_date="2022-07-01")
+
+    def test_a_window_earlier_in_the_season_is_not_nothing(self):
+        out = DZ.diagnose(anomaly={}, risk=self._season(), scouting=[])
+        assert out["claim_level"] == "SEASON RISK"
+        assert "no weather window opened" not in out["note"]
+
+    def test_it_says_when_and_what_to_scout_for_next_season(self):
+        out = DZ.diagnose(anomaly={}, risk=self._season(), scouting=[])
+        assert "2022-0" in out["headline"]
+        assert "next season" in out["next_step"]
+        assert "الموسم القادم" in out["next_step_ar"]
+
+    def test_it_does_not_pretend_there_is_something_to_do_now(self):
+        """The window has closed. Telling somebody to spray for it would be
+        worse than saying nothing."""
+        out = DZ.diagnose(anomaly={}, risk=self._season(), scouting=[])
+        assert "the window has closed" in out["next_step"]
+
+    def test_it_ranks_below_a_window_that_is_open_now(self):
+        """A current window means walk out this week; a past one does not."""
+        now = DZ.crop_risk("sorghum", *[[x] * 14 for x in
+                                        (24.0, 32.0, 23.0, 5.0)])
+        assert DZ.diagnose({}, now, [])["claim_level"] == "RISK"
+
+    def test_it_ranks_below_an_anomaly_in_this_field(self):
+        patch = DZ.anomaly_patch(4.0, 40.0, [33.0, 14.0], [33.0, 14.01])
+        assert DZ.diagnose(patch, self._season(), [])["claim_level"] == "ANOMALY"
+
+    def test_a_scouted_report_still_outranks_it(self):
+        out = DZ.diagnose({}, self._season(),
+                          [{"problem": "striga", "observed_at": "2022-09-01"}])
+        assert out["claim_level"] == "REPORTED"
+
+    def test_a_genuinely_quiet_season_is_still_nothing(self):
+        dry = DZ.crop_risk("sorghum", *[[x] * 270 for x in
+                                        (25.0, 45.0, 2.0, 0.0)],
+                           start_date="2022-07-01")
+        out = DZ.diagnose({}, dry, [])
+        assert out["claim_level"] == "NONE"
+        assert "not a clean bill of health" in out["note"]
+
+    def test_the_new_rung_is_never_drawn_red(self):
+        """It is the weakest claim in the ladder, not the strongest."""
+        import sys as _s, os as _o
+        _s.path.insert(0, _o.path.join(_o.path.dirname(__file__), "..",
+                                       "farmer_app"))
+        import view as D
+        assert D.CLAIM_STATUS["SEASON RISK"] != "attention"
+        assert "SEASON RISK" in D.CLAIM_LEVEL
+
+
+class TestTheArabicPrepositionJoins:
+    """
+    Arabic prefixes join the following word: li + عفن is لعفن, one word. The
+    tatweel form لـ exists for text that CANNOT join - Latin script, a numeral,
+    a dataset name - as in لـSentinel-2.
+
+    The live run printed "لـعفن حبوب الذرة": the tatweel form in front of an
+    Arabic word, which renders as a stranded connector and reads to an Arabic
+    speaker the way "t he grain mould" reads in English. Small, and this
+    application's whole first language.
+    """
+    def test_it_joins_an_arabic_word(self):
+        assert DZ.li("عفن حبوب الذرة") == "لعفن حبوب الذرة"
+        assert "ـ" not in DZ.li("أنثراكنوز الذرة")
+
+    def test_it_keeps_the_tatweel_before_latin_script(self):
+        assert DZ.li("Sentinel-2") == "لـSentinel-2"
+
+    def test_nothing_to_prefix_does_not_crash(self):
+        assert DZ.li("") == "لـ"
+
+    def test_the_headlines_use_it(self):
+        tn, tx, td, r = _days(14, 24.0, 32.0, 23.0, 5.0)
+        now = DZ.diagnose({}, DZ.crop_risk("sorghum", tn, tx, td, r), [])
+        assert "لـأ" not in now["headline_ar"] and "لـع" not in now["headline_ar"]
+
+        n = 270
+        tn2, tx2, td2, r2 = [25.0] * n, [45.0] * n, [2.0] * n, [0.0] * n
+        for i in range(60, 85):
+            tx2[i], td2[i], r2[i] = 32.0, 24.0, 6.0
+        season = DZ.diagnose({}, DZ.crop_risk("sorghum", tn2, tx2, td2, r2,
+                                              start_date="2022-07-01"), [])
+        assert "لـع" not in season["headline_ar"]
+        assert "لعفن" in season["headline_ar"]

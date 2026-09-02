@@ -206,3 +206,51 @@ class TestTheEngineActuallyResumes:
                               with_series=False)
         assert res["checkpoint"]["status"] == "STALE"
         assert "marker" not in res["fields"][0]
+
+
+class TestTheReportTellsTheTruthAboutWhatWasResumed:
+    """
+    `n_recovered` was len(self.records), which after a successful FRESH run is
+    every field in the farm. The first live run produced
+
+        {"status": "FRESH", ..., "n_recovered": 4}
+
+    on a run that had resumed nothing - so a reader checking whether a run was
+    clean was told the exact opposite of the truth.
+    """
+    def test_a_fresh_run_recovered_nothing(self, tmp_path):
+        c = CP.Checkpoint(str(tmp_path / "o.json"), "fp")
+        c.resume()
+        for name in ("A", "B", "C", "D"):
+            c.add({"name": name})
+        d = c.describe()
+        assert d["status"] == "FRESH"
+        assert d["n_recovered"] == 0
+        assert d["n_written"] == 4
+
+    def test_a_resumed_run_counts_only_what_came_back(self, tmp_path):
+        """Not what it went on to write afterwards."""
+        out = str(tmp_path / "o.json")
+        first = CP.Checkpoint(out, "fp")
+        first.resume()
+        first.add({"name": "A"})
+        first.add({"name": "B"})
+
+        second = CP.Checkpoint(out, "fp")
+        assert len(second.resume()) == 2
+        second.add({"name": "C"})
+        second.add({"name": "D"})
+        d = second.describe()
+        assert d["status"] == "RESUMED"
+        assert d["n_recovered"] == 2
+        assert d["n_written"] == 4
+
+    def test_a_discarded_checkpoint_recovered_nothing(self, tmp_path):
+        out = str(tmp_path / "o.json")
+        first = CP.Checkpoint(out, "one")
+        first.resume()
+        first.add({"name": "A"})
+        second = CP.Checkpoint(out, "two")
+        second.resume()
+        second.add({"name": "A"})
+        assert second.describe()["n_recovered"] == 0
