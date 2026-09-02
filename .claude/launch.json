@@ -37,11 +37,7 @@
         "--report",
         "docs/farm_report_demo.json",
         "--fields",
-        "docs/gezira_fields_demo.geojson",
-        "--data",
-        "demo",
-        "--farm",
-        "demo"
+        "docs/gezira_fields_demo.geojson"
       ],
       "port": 8505
     },
@@ -74,24 +70,6 @@
         "127.0.0.1"
       ],
       "port": 8504
-    },
-    {
-      "name": "network-map",
-      "runtimeExecutable": "streamlit",
-      "runtimeArgs": [
-        "run",
-        "dashboard/map_app.py",
-        "--server.port",
-        "8506",
-        "--server.address",
-        "127.0.0.1",
-        "--server.headless",
-        "true",
-        "--",
-        "--results",
-        "docs/sample_results.json"
-      ],
-      "port": 8506
     }
   ]
 }

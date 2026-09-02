@@ -68,10 +68,6 @@ def _args():
     p.add_argument("--report", default="farm_report.json")
     p.add_argument("--fields", default=None)
     p.add_argument("--farm", default="farm")
-    p.add_argument("--data", default=".",
-                   help="directory holding the record stores. `demo` is a "
-                        "synthetic set written by tools/seed_demo.py, kept "
-                        "apart from the real one on purpose.")
     p.add_argument("--hierarchy", default="flat",
                    help="gezira | flat - see src/registry.py, and confirm the "
                         "level names with the scheme before using them")
@@ -106,12 +102,6 @@ def main():
                 f'<p>{ui.t("console_sub", ar)}</p></div>',
                 unsafe_allow_html=True)
 
-    # A synthetic record set has to say so wherever it is read, not only in the
-    # directory that explains it. Otherwise an unlocked yield in a screenshot
-    # is indistinguishable from a calibrated one.
-    if _is_synthetic(args.data):
-        ui.note(ui.t("synthetic_records", ar), "warn", ar)
-
     farm = st.sidebar.text_input(ui.t("farm_name", ar), args.farm)
     if not AUTH.may_see(user, farm):
         ui.note(ui.t("not_your_farm", ar), "stop", ar)
@@ -143,35 +133,14 @@ def main():
     if page == "changes":
         CG.render(report, ar, farm=farm)
     elif page == "record":
-        R.render(report, args.data)
+        R.render(report)
     elif page == "units":
         _units(report, field_fc, ar, args.hierarchy)
     elif page == "backup":
-        _backup(ar, args.data)
+        _backup(ar)
     elif page == "about":
-        _accuracy(ar, args.data)
+        _accuracy(ar)
         A.render(report, ar)
-
-
-def _is_synthetic(data_dir: str) -> bool:
-    """Does this store hold records stamped DEMONSTRATION?
-
-    Read from the DATA rather than from the directory name, so the warning
-    survives somebody copying the file somewhere else and calling it
-    `records.db`.
-    """
-    import sqlite3
-    p = os.path.join(data_dir, "observations.db")
-    if not os.path.exists(p):
-        return False
-    try:
-        conn = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
-        n = conn.execute("SELECT COUNT(*) FROM observations "
-                         "WHERE observer = 'DEMONSTRATION'").fetchone()[0]
-        conn.close()
-        return n > 0
-    except sqlite3.Error:
-        return False
 
 
 def _run(report, fields_path, field_fc, farm, ar):
@@ -192,7 +161,7 @@ def _run(report, fields_path, field_fc, farm, ar):
     st.session_state["_report"] = produced
 
 
-def _accuracy(ar, data_dir="."):
+def _accuracy(ar):
     """
     How often the satellite agreed with somebody who walked out and looked.
 
@@ -202,8 +171,7 @@ def _accuracy(ar, data_dir="."):
     """
     import nutrition_climate_ground as NCG
     try:
-        store = NCG.ObservationStore(
-            os.path.join(data_dir, "observations.db"))
+        store = NCG.ObservationStore("observations.db")
     except Exception:                                        # noqa: BLE001
         return
     try:
@@ -269,10 +237,10 @@ def _units(report, field_fc, ar, default_hierarchy):
         st.caption(agg["basis"])
 
 
-def _backup(ar, data_dir="."):
+def _backup(ar):
     """What is lost if this machine is, and one file that carries it away."""
     ui.section(ui.t("page_backup", ar), "", ar)
-    s = BK.survey(data_dir)
+    s = BK.survey(".")
     ui.note(s["note_ar"] if ar else s["note"], "", ar)
 
     ui.stats([(ui.t("backup_what", ar), len(s["found"]), None),
@@ -288,7 +256,7 @@ def _backup(ar, data_dir="."):
 
     dest = st.text_input("ZIP", "farm_backup.zip")
     if st.button(ui.t("backup_make", ar), type="primary"):
-        made = BK.create(dest, data_dir)
+        made = BK.create(dest)
         st.success(f'{ui.t("backup_done", ar)}: {dest} '
                    f'({made["bytes"] // 1024} KB, {made["n_files"]})')
         # Verified immediately: an untested backup is a belief, not a backup.

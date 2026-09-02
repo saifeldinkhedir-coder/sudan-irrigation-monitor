@@ -58,6 +58,6 @@ farm_report*.html
 users.json
 *users*.json
 
-# Synthetic demonstration data. Regenerate with tools/seed_demo.py; never
-# commit invented records that could be mistaken for measurements.
-demo/
+# coverage output
+.coverage
+htmlcov/
