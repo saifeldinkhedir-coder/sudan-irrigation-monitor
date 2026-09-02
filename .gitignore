@@ -57,3 +57,7 @@ farm_report*.html
 # the deployment. It is also per-machine configuration, not source.
 users.json
 *users*.json
+
+# Synthetic demonstration data. Regenerate with tools/seed_demo.py; never
+# commit invented records that could be mistaken for measurements.
+demo/

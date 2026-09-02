@@ -80,7 +80,7 @@ geometry/
   build_water_frequency.py     build a persistent-water raster to trace canals.
   canal_geometry.py            fetch canals from OSM; validate ANY canal GeoJSON
                                against what the engine requires, before a run.
-tests/                         765 tests; run with no Earth Engine.
+tests/                         873 tests; run with no Earth Engine.
 docs/STRATEGY.md               the thinking; docs/dashboard_screenshot.png; sample.
 ```
 
@@ -911,3 +911,53 @@ opens twice — so it imported cleanly, passed every test, and would have died w
 A name used only inside a function body is not resolved until that body runs. A
 test now parses the app, collects every local function it calls, and asserts each
 one exists. It found `_render_map` on its first run.
+
+
+## Running the demonstration
+
+```bash
+cd ~/Desktop/sudan_irrigation_monitor && python tools/seed_demo.py
+```
+
+```bash
+cd ~/Desktop/sudan_irrigation_monitor && streamlit run farmer_app/app.py
+```
+
+```bash
+cd ~/Desktop/sudan_irrigation_monitor && streamlit run console/app.py -- --data demo --farm demo
+```
+
+Half of what this platform does is refuse, and a demonstration in which every
+gate is shut shows only half the design — a reader sees "not available" nine
+times and cannot tell whether the tool is careful or unfinished. What makes it
+careful is what happens **when a gate opens**: the figure arrives with its
+error, its sample count, and the name of whoever measured it.
+
+`tools/seed_demo.py` writes a synthetic ground-truth set so that can be seen:
+30 weighed harvests (the number the yield gate asks for), 4 scouting records —
+two named findings and two clean walks — and 20 field operations. With it, the
+yield unlocks with an RMSE, the disease ladder reaches REPORTED, and the
+satellite-versus-observer rate exists for the first time.
+
+Four things keep it from becoming a lie:
+
+- It writes to `demo/`, never the working directory. The real stores stay
+  empty, because they should be: nobody has measured anything yet.
+- Every row carries `observer = DEMONSTRATION` and a note saying it is
+  synthetic. **The stamp is in the data**, so it survives being copied out of
+  the directory that explains it, and the console warns wherever it reads one.
+- It refuses to run against a directory holding records it did not write. A
+  tool that can overwrite a season of somebody's scouting with invented rows is
+  a tool that eventually will.
+- The harvests are drawn from a **declared line with declared noise**, printed
+  on creation: `yield t/ha = 8.5 × NDVI − 1.1 + N(0, 0.18)`. The fit recovers
+  it at slope 8.71, r² 0.97. That is the point — the model is this line found
+  again, not a finding about sorghum.
+
+It invents no satellite measurement. It reads the real report to score the
+scouting records against what the satellite saw, and a test asserts the report
+is byte-identical afterwards.
+
+See **[VALIDATION.md](VALIDATION.md)** for what has and has not been checked,
+the seventy arbitrary constants ranked by how much of the output moves with
+them, and what would falsify each of the ten that matter most.

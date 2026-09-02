@@ -575,6 +575,14 @@ T = {
     # In an Arabic-first interface it is the most visible untranslated string
     # on the page, and it sits inside the two widgets a reader touches first.
     "any_ph": ("الكل", "any"),
+    "synthetic_records": (
+        "سجلّات هذا المجلّد اصطناعية — كُتبت بـ tools/seed_demo.py ولم يقسها "
+        "أحد. الأرقام المفتوحة أدناه توضّح شكل البوّابة وهي مفتوحة، لا نتيجةً "
+        "عن محصول.",
+        "The records in this directory are SYNTHETIC - written by "
+        "tools/seed_demo.py and measured by nobody. The unlocked figures below "
+        "show what a gate looks like when it opens; they are not a result "
+        "about a crop."),
     "run_in_console": (
         "تشغيل المحرّك عملُ مشغِّل، ومكانه تطبيق المشغِّل:",
         "Running the engine is an operator job, and it lives in the operator "
