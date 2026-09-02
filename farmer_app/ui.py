@@ -67,131 +67,230 @@ SANS_AR = ("'Segoe UI', 'SF Arabic', 'Noto Sans Arabic', 'Noto Naskh Arabic', "
 
 CSS = f"""
 <style>
-/* Scoped to this app's own classes.
-   An earlier version styled [class*="css"], which matches Streamlit's
-   generated class names - they change between releases, so that selector was a
-   promise to break on the next upgrade. Everything below targets either a
-   class this file defines or a documented Streamlit test id. */
-.fm {{ font-family: {SANS}; }}
+/* ============================================================================
+   A DESIGN SYSTEM, NOT A PILE OF DECLARATIONS
+
+   What was here before was chosen one rule at a time: six font sizes with no
+   ratio between them (some four per cent apart, which the eye cannot use as a
+   hierarchy), and four weights of which two - 680 and 650 - are not real
+   weights in any of these fonts and were being rounded to 700. Three
+   "different" weights rendered as two, so the distinction the code thought it
+   was making did not exist on screen.
+
+   Everything below comes from three scales instead.
+
+   TYPE      a 1.2 modular scale from a 14px base. Each step is visibly
+             different from its neighbour, which is the whole purpose.
+   SPACE     multiples of 4px. Nothing is 7px or 13px because nothing needs
+             to be, and arbitrary gaps are what makes a layout feel loose.
+   WEIGHT    400 and 600 and 700. Only weights that exist.
+
+   Scoped to this file's own classes and to documented Streamlit test ids.
+   Nothing here targets a generated class name; those change between releases,
+   and a selector built on one is a promise to break on the next upgrade.
+   ============================================================================ */
+
+:root {{
+  /* type: 14 * 1.2^n, rounded to the nearest half pixel */
+  --t-xs: 11.5px;   /* labels, units, provenance */
+  --t-sm: 12.5px;   /* secondary text */
+  --t-md: 14px;     /* body */
+  --t-lg: 17px;     /* section headings */
+  --t-xl: 20px;     /* page title */
+  --t-num: 26px;    /* the figures on the stat cards */
+
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
+
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
+
+  /* Elevation. Cards used to be a 1px outline and nothing else, so nothing
+     sat above anything and the eye had no depth to read the layout with.
+     Two levels only: resting, and lifted. */
+  --e-1: 0 1px 2px rgba(28,35,33,.04), 0 1px 1px rgba(28,35,33,.03);
+  --e-2: 0 2px 8px rgba(28,35,33,.07), 0 1px 2px rgba(28,35,33,.04);
+
+  --ink: {INK};
+  --soft: {INK_SOFT};
+  --line: {LINE};
+  --surface: {SURFACE};
+  --paper: {PAPER};
+}}
+
+.fm {{ font-family: {SANS}; color: var(--ink); }}
 .fm.rtl, .rtl {{ direction: rtl; text-align: right; font-family: {SANS_AR}; }}
 .rtl * {{ direction: rtl; text-align: right; }}
 
-/* Streamlit's top padding is generous and its width unconstrained on a wide
-   screen; stMainBlockContainer is a documented test id rather than a generated
-   class. If a future release renames it, the layout loosens - it does not
-   break. */
-[data-testid="stMainBlockContainer"] {{ padding-top: 2.2rem; max-width: 1240px; }}
-
-/* The top bar replaces a tall hero card. A product's header identifies the
-   thing and gets out of the way; it is not the place for an essay. */
-.topbar {{
-  display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
-  border-bottom: 1px solid {LINE}; padding-bottom: .7rem; margin-bottom: .9rem;
+/* Every figure is tabular. Digits that change width make a column of numbers
+   shuffle sideways as the data updates, which reads as instability in the
+   measurement rather than in the font. */
+.fm .num, .stat .v, .frow .nd, table.vars td.v, .count b {{
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
 }}
-.topbar h1 {{ font-size: 1.28rem; margin: 0; color: {INK};
-              letter-spacing: -.01em; font-weight: 700; }}
-.topbar .tag {{ margin-inline-start: auto; }}
-.topbar p {{ width: 100%; margin: .15rem 0 0; color: {INK_SOFT};
-             font-size: .82rem; line-height: 1.5; }}
+
+[data-testid="stMainBlockContainer"] {{
+  padding-top: var(--sp-5); max-width: 1240px;
+}}
+
+/* --------------------------------------------------------------- top bar */
+.topbar {{
+  display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: var(--sp-3); margin-bottom: var(--sp-5);
+}}
+.topbar h1 {{
+  font-size: var(--t-xl); font-weight: 700; margin: 0; color: var(--ink);
+  letter-spacing: -.015em; line-height: 1.25; flex: none;
+}}
+.topbar p {{
+  width: 100%; margin: var(--sp-1) 0 0; color: var(--soft);
+  font-size: var(--t-sm); line-height: 1.6; max-width: 78ch;
+}}
 
 .tag {{
-  display: inline-flex; align-items: center; gap: .3rem;
-  border: 1px solid {LINE}; border-radius: 999px; padding: .1rem .6rem;
-  font-size: .72rem; color: {INK_SOFT}; background: {PAPER}; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  border: 1px solid var(--line); border-radius: var(--r-pill);
+  padding: 2px var(--sp-2); font-size: var(--t-xs); color: var(--soft);
+  background: var(--paper); white-space: nowrap;
 }}
-.tag.demo {{ border-color: {STATUS_HEX['watch']}; color: #8A5B08;
-             background: #FDF6E7; font-weight: 650; letter-spacing: .04em; }}
-
-/* The field list: one scannable row per field, scrollable so a long scheme
-   does not push the map off the screen. */
-.panel {{ max-height: 520px; overflow-y: auto; padding-inline-end: .25rem; }}
-.frow {{
-  display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
-  border: 1px solid {LINE}; border-inline-start: 4px solid var(--accent);
-  border-radius: 10px; background: {SURFACE};
-  padding: .5rem .7rem; margin-bottom: .4rem;
+.tag.demo {{
+  border-color: {STATUS_HEX['watch']}; color: #8A5B08; background: #FDF6E7;
+  font-weight: 600;
 }}
-.frow.sel {{ border-color: {INK}; box-shadow: 0 0 0 2px rgba(28,35,33,.07); }}
-.frow .nm {{ font-weight: 650; color: {INK}; font-size: .92rem; }}
-.frow .nd {{ margin-inline-start: auto; font-variant-numeric: tabular-nums;
-             font-size: .8rem; color: {INK_SOFT}; }}
-.frow .sub {{ width: 100%; font-size: .76rem; color: {INK_SOFT};
-              line-height: 1.45; }}
 
-.count {{ font-size: .8rem; color: {INK_SOFT}; margin: .2rem 0 .5rem; }}
-.count b {{ color: {INK}; font-variant-numeric: tabular-nums; }}
-
-.statgrid {{ display: flex; gap: .7rem; flex-wrap: wrap; margin: .9rem 0 1.1rem; }}
+/* ------------------------------------------------------------ stat cards */
+.statgrid {{
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--sp-3); margin: var(--sp-4) 0 var(--sp-5);
+}}
 .stat {{
-  flex: 1 1 150px; border: 1px solid {LINE}; border-radius: 12px;
-  background: {SURFACE}; padding: .7rem .9rem;
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--surface); padding: var(--sp-3) var(--sp-4);
+  box-shadow: var(--e-1);
 }}
-.stat .k {{ font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
-            color: {INK_SOFT}; }}
-.stat .v {{ font-size: 1.45rem; font-weight: 650; color: {INK};
-            line-height: 1.25; margin-top: .15rem; }}
-.stat .s {{ font-size: .74rem; color: {INK_SOFT}; }}
+.stat .k {{
+  font-size: var(--t-xs); letter-spacing: .04em; color: var(--soft);
+  font-weight: 500; text-transform: none;
+}}
+.stat .v {{
+  font-size: var(--t-num); font-weight: 700; color: var(--ink);
+  line-height: 1.15; margin-top: var(--sp-1); letter-spacing: -.02em;
+}}
+.stat .s {{ font-size: var(--t-xs); color: var(--soft); margin-top: 2px; }}
 
-.fieldcard {{
-  border: 1px solid {LINE}; border-left: 5px solid var(--accent);
-  border-radius: 12px; background: {SURFACE};
-  padding: .75rem .95rem; margin-bottom: .55rem;
+/* ----------------------------------------------------------- field rows */
+/* The main interactive object on the page, and it had no hover state and no
+   selected state - so the one thing a reader clicks gave no sign it could be
+   clicked, and no sign which one they had chosen. */
+.panel {{ max-height: 520px; overflow-y: auto; padding-inline-end: var(--sp-1); }}
+.frow {{
+  display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: var(--r-sm); background: var(--surface);
+  padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2);
+  box-shadow: var(--e-1);
+  transition: box-shadow .12s ease, border-color .12s ease,
+              transform .12s ease;
 }}
-.fieldcard .top {{ display: flex; align-items: baseline; gap: .6rem;
-                   flex-wrap: wrap; }}
-.fieldcard .rank {{ font-size: .78rem; color: {INK_SOFT}; font-weight: 600; }}
-.fieldcard .name {{ font-size: 1.02rem; font-weight: 650; color: {INK}; }}
-.fieldcard .why {{ font-size: .8rem; color: {INK_SOFT}; margin-top: .3rem;
-                   line-height: 1.5; }}
-.fieldcard ul {{ margin: .4rem 0 0 0; padding-inline-start: 1.1rem; }}
-.fieldcard li {{ font-size: .82rem; color: {INK}; margin-bottom: .15rem; }}
+.frow:hover {{ box-shadow: var(--e-2); transform: translateY(-1px); }}
+.frow.sel {{
+  border-color: var(--accent);
+  box-shadow: var(--e-2), inset 0 0 0 1px var(--accent);
+}}
+.frow .nm {{ font-weight: 600; color: var(--ink); font-size: var(--t-md); }}
+.frow .nd {{
+  margin-inline-start: auto; font-size: var(--t-sm); color: var(--soft);
+  font-weight: 500;
+}}
+.frow .sub {{
+  width: 100%; font-size: var(--t-xs); color: var(--soft); line-height: 1.55;
+  margin-top: 2px;
+}}
+
+/* A dot as well as the edge stripe. On a narrow screen the stripe is at the
+   far edge of the card and the status is the thing being scanned for. */
+.dot {{
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: var(--accent);
+}}
+
+.count {{ font-size: var(--t-sm); color: var(--soft);
+          margin: var(--sp-1) 0 var(--sp-3); }}
+.count b {{ color: var(--ink); font-weight: 600; }}
 
 .chip {{
-  display: inline-block; padding: .12rem .55rem; border-radius: 999px;
-  font-size: .72rem; font-weight: 600; color: #fff; white-space: nowrap;
+  display: inline-block; padding: 2px var(--sp-2); border-radius: var(--r-pill);
+  font-size: var(--t-xs); font-weight: 600; color: #fff; white-space: nowrap;
 }}
 
-.legend {{ display: flex; gap: 1.1rem; flex-wrap: wrap; margin: .5rem 0 .2rem; }}
-.legend .item {{ display: flex; gap: .45rem; align-items: flex-start;
-                 flex: 1 1 210px; }}
-.legend .sw {{ width: 13px; height: 13px; border-radius: 3px; margin-top: .22rem;
+/* ------------------------------------------------------------ field card */
+.fieldcard {{
+  border: 1px solid var(--line); border-inline-start: 3px solid var(--accent);
+  border-radius: var(--r-md); background: var(--surface);
+  padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-2);
+  box-shadow: var(--e-1);
+}}
+.fieldcard .top {{ display: flex; align-items: center; gap: var(--sp-2);
+                   flex-wrap: wrap; }}
+.fieldcard .rank {{ font-size: var(--t-xs); color: var(--soft);
+                    font-weight: 500; }}
+.fieldcard .name {{ font-size: var(--t-md); font-weight: 600; color: var(--ink); }}
+.fieldcard .why {{ font-size: var(--t-sm); color: var(--soft);
+                   margin-top: var(--sp-1); line-height: 1.55; }}
+.fieldcard ul {{ margin: var(--sp-1) 0 0 0; padding-inline-start: var(--sp-4); }}
+.fieldcard li {{ font-size: var(--t-sm); color: var(--ink); margin-bottom: 2px; }}
+
+/* ---------------------------------------------------------------- legend */
+.legend {{ display: flex; gap: var(--sp-5); flex-wrap: wrap;
+           margin: var(--sp-2) 0; }}
+.legend .item {{ display: flex; gap: var(--sp-2); align-items: flex-start;
+                 flex: 1 1 200px; }}
+.legend .sw {{ width: 10px; height: 10px; border-radius: 3px; margin-top: 4px;
                flex: none; }}
-.legend .lb {{ font-size: .78rem; font-weight: 650; color: {INK}; }}
-.legend .ds {{ font-size: .73rem; color: {INK_SOFT}; line-height: 1.45; }}
+.legend .lb {{ font-size: var(--t-sm); font-weight: 600; color: var(--ink); }}
+.legend .ds {{ font-size: var(--t-xs); color: var(--soft); line-height: 1.5; }}
 
-.sechead {{ font-size: 1.05rem; font-weight: 680; color: {INK};
-            margin: 1.5rem 0 .15rem; }}
+/* -------------------------------------------------------------- headings */
+.sechead {{
+  font-size: var(--t-lg); font-weight: 700; color: var(--ink);
+  margin: var(--sp-6) 0 var(--sp-1); letter-spacing: -.01em;
+}}
 .sechead + .subtle {{ margin-top: 0; }}
-.subtle {{ font-size: .8rem; color: {INK_SOFT}; line-height: 1.5;
-           margin: .2rem 0 .7rem; }}
+.subtle {{ font-size: var(--t-sm); color: var(--soft); line-height: 1.6;
+           margin: var(--sp-1) 0 var(--sp-3); max-width: 78ch; }}
 
-.note {{ border-inline-start: 3px solid {LINE}; padding: .35rem 0 .35rem .7rem;
-         font-size: .79rem; color: {INK_SOFT}; line-height: 1.55;
-         margin: .5rem 0; }}
+.note {{
+  border-inline-start: 2px solid var(--line);
+  padding: var(--sp-1) 0 var(--sp-1) var(--sp-3);
+  font-size: var(--t-sm); color: var(--soft); line-height: 1.6;
+  margin: var(--sp-2) 0; max-width: 78ch;
+}}
 .note.warn {{ border-inline-start-color: {STATUS_HEX['watch']}; }}
 .note.stop {{ border-inline-start-color: {STATUS_HEX['attention']}; }}
 
-/* The variables table: dense, aligned, and quiet enough to scan. */
-table.vars {{ width: 100%; border-collapse: collapse; font-size: .82rem; }}
+/* ------------------------------------------------------- variables table */
+table.vars {{ width: 100%; border-collapse: collapse; font-size: var(--t-sm); }}
 table.vars th {{
-  text-align: start; font-size: .7rem; text-transform: uppercase;
-  letter-spacing: .06em; color: {INK_SOFT}; font-weight: 600;
-  border-bottom: 1px solid {LINE}; padding: .4rem .5rem;
+  text-align: start; font-size: var(--t-xs); letter-spacing: .04em;
+  color: var(--soft); font-weight: 600;
+  border-bottom: 1px solid var(--line); padding: var(--sp-2);
+  position: sticky; top: 0; background: var(--paper);
 }}
-table.vars td {{ padding: .42rem .5rem; border-bottom: 1px solid #F2EFE8;
-                 color: {INK}; vertical-align: top; }}
-table.vars td.v {{ font-variant-numeric: tabular-nums; font-weight: 600; }}
-table.vars td.meta {{ color: {INK_SOFT}; font-size: .76rem; }}
-table.vars tr.na td {{ color: {INK_SOFT}; font-style: italic; }}
-table.vars td.below {{ color: {STATUS_HEX['attention']}; font-weight: 650; }}
-/* The reason marker. A circled question mark, not an emoji: an emoji that
-   falls back renders as a literal "?" glyph box, indistinguishable from a
-   missing character, which is how this app once shipped a broken symbol. */
-table.vars .q {{
-  display: inline-block; margin-inline-start: .35rem; width: 14px; height: 14px;
-  line-height: 14px; text-align: center; border-radius: 50%;
-  background: {LINE}; color: {INK_SOFT}; font-size: .65rem; font-style: normal;
-  font-weight: 700; cursor: help; vertical-align: middle;
+table.vars td {{ padding: var(--sp-2); border-bottom: 1px solid #F2EFE8;
+                 color: var(--ink); vertical-align: top; }}
+table.vars tr:hover td {{ background: #FCFBF8; }}
+table.vars td.v {{ font-weight: 600; }}
+table.vars td.meta {{ color: var(--soft); font-size: var(--t-xs); }}
+table.vars tr.na td {{ color: var(--soft); font-style: italic; }}
+table.vars td.below {{ color: {STATUS_HEX['attention']}; font-weight: 700; }}
+
+/* --------------------------------------------------------------- motion */
+/* Somebody who has asked not to see movement should not have to watch a card
+   lift under the cursor. */
+@media (prefers-reduced-motion: reduce) {{
+  .frow {{ transition: none; }}
+  .frow:hover {{ transform: none; }}
 }}
 </style>
 """
@@ -472,6 +571,10 @@ T = {
     # first of seven equal items is an administration console with a map in it.
     "tools": ("أدوات", "Tools"),
     "sources": ("مصادر البيانات", "Where the data comes from"),
+    # Streamlit's own multiselect placeholder is the English "Choose options".
+    # In an Arabic-first interface it is the most visible untranslated string
+    # on the page, and it sits inside the two widgets a reader touches first.
+    "any_ph": ("الكل", "any"),
     "run_in_console": (
         "تشغيل المحرّك عملُ مشغِّل، ومكانه تطبيق المشغِّل:",
         "Running the engine is an operator job, and it lives in the operator "
@@ -625,6 +728,10 @@ def field_row(name, status_key, status_label, tags=(), right="",
     st.markdown(
         f'<div class="frow fm{" rtl" if ar else ""}{" sel" if selected else ""}"'
         f' style="--accent:{accent}"{d}>'
+        # A dot as well as the edge stripe. On a narrow screen the stripe is at
+        # the far edge of the card, and the status is the thing being scanned
+        # for - it belongs beside the name, not at the margin.
+        f'<span class="dot"></span>'
         f'<span class="chip" style="background:{accent}">{status_label}</span>'
         f'<span class="nm">{name}</span>{chips}'
         + (f'<span class="nd">{right}</span>' if right else "")

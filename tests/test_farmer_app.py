@@ -1470,3 +1470,78 @@ class TestTheDemoWorksFromAnyWorkingDirectory:
         import onboarding as ONB
         monkeypatch.chdir(tmp_path)
         assert ONB.needed("farm_report.json", "") is True
+
+
+class TestTheTypeScaleIsASystem:
+    """
+    The stylesheet was written one declaration at a time. Six font sizes with
+    no ratio between them - 20.48, 16.8, 14.72, 13.12, 12.16, 11.52 - some of
+    them four per cent apart, which no eye can use as a hierarchy. And four
+    weights, of which 680 and 650 are not real weights in any of these fonts:
+    both round to 700, so three "different" weights rendered as two and the
+    distinction the code thought it was making did not exist on screen.
+    """
+    def _decls(self, prop):
+        import re
+        return re.findall(rf"{prop}:\s*([^;]+);", U.CSS)
+
+    def test_sizes_come_from_tokens_not_from_literals(self):
+        sizes = [s.strip() for s in self._decls("font-size")]
+        literal = [s for s in sizes if not s.startswith("var(--t-")]
+        assert not literal, f"font sizes bypassing the scale: {literal}"
+
+    def test_the_scale_has_visibly_distinct_steps(self):
+        import re
+        vals = sorted(float(v) for v in re.findall(
+            r"--t-\w+:\s*([\d.]+)px", U.CSS))
+        for a, b in zip(vals, vals[1:]):
+            assert b / a >= 1.08, f"{a}px and {b}px are too close to tell apart"
+
+    def test_only_real_font_weights_are_used(self):
+        """680 and 650 are not weights; they are rounded away."""
+        weights = {w.strip() for w in self._decls("font-weight")}
+        assert weights <= {"400", "500", "600", "700"}, weights
+
+    def test_spacing_comes_from_the_scale(self):
+        """Arbitrary gaps are what makes a layout feel loose."""
+        import re
+        pads = [p.strip() for p in self._decls("padding")]
+        odd = [p for p in pads
+               if "var(--sp-" not in p and not re.fullmatch(r"[\d\s.px]+", p)]
+        assert not odd, odd
+
+    def test_cards_have_elevation(self):
+        """A 1px outline and nothing else means nothing sits above anything,
+        and the eye has no depth to read the layout with."""
+        assert "--e-1:" in U.CSS and "--e-2:" in U.CSS
+        assert "box-shadow: var(--e-1)" in U.CSS
+
+    def test_the_row_a_reader_clicks_reacts_to_being_hovered(self):
+        assert ".frow:hover" in U.CSS
+        assert ".frow.sel" in U.CSS
+
+    def test_movement_is_dropped_for_anybody_who_asked(self):
+        assert "prefers-reduced-motion" in U.CSS
+
+    def test_every_figure_is_tabular(self):
+        """Digits that change width make a column of numbers shuffle sideways
+        as the data updates, which reads as instability in the measurement."""
+        block = U.CSS.split("tabular-nums")[0].split("\n")[-2]
+        for sel in (".stat .v", ".frow .nd", "table.vars td.v"):
+            assert sel in block, sel
+
+    def test_it_still_fetches_nothing_and_targets_no_generated_class(self):
+        assert "@import" not in U.CSS and "http" not in U.CSS
+        assert '[class*="css"]' not in U.CSS
+
+
+class TestNoEnglishLeaksThroughAWidget:
+    def test_the_multiselects_carry_an_arabic_placeholder(self):
+        """Streamlit's own placeholder is "Choose options". In an Arabic-first
+        interface it is the most visible untranslated string on the page, and
+        it sits inside the two widgets a reader touches first."""
+        src = _source("app.py")
+        block = src.split("def _toolbar")[1].split("\ndef ")[0]
+        assert block.count("placeholder=ui.t(") >= 3
+        assert "any_ph" in U.T
+        assert U.t("any_ph", ar=True) != U.t("any_ph", ar=False)

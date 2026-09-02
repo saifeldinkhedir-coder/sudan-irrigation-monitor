@@ -245,10 +245,11 @@ def _toolbar(index, ar) -> dict:
     q = c1.text_input(ui.t("search", ar), key="q",
                       placeholder=ui.t("search_ph", ar))
     crops = c2.multiselect(ui.t("crop_filter", ar), S.crops_in(index),
-                           key="crops")
+                           key="crops", placeholder=ui.t("any_ph", ar))
     status_opts = ["attention", "watch", "ok", "unmeasured"]
     sts = c3.multiselect(
         ui.t("status_filter", ar), status_opts, key="sts",
+        placeholder=ui.t("any_ph", ar),
         format_func=lambda k: D.label(D.STATUS_LABEL, k, ar))
 
     d1, d2, d3, d4, d5 = st.columns([2, 2, 2, 2, 2])
