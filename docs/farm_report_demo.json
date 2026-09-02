@@ -14,7 +14,6 @@
     "Landsat 8/9 thermal": "100 m LST - direct water-stress measure",
     "CHIRPS": "daily rainfall - separates drought from crop problems",
     "ERA5-Land": "FAO-56 inputs, growing degree days, heat stress",
-    "MODIS": "actual evapotranspiration",
     "NOAA GFS": "7-day outlook, ~28 km - scheme scale, not field scale",
     "OpenLandMap": "soil texture, 250 m - explains standing differences"
   },

@@ -531,3 +531,80 @@ class TestOneWeatherSeriesForOneWeatherPixel:
                                rain=[5.0] * 14)
         assert called == []
         assert out["risk"]["risks"]
+
+
+class TestTheSensorListIsNotAClaim:
+    """
+    The report's `sensors` table listed MODIS "actual evapotranspiration", and
+    the About page printed it to the reader as a source the figures rested on.
+    This engine has never called MODIS - MOD16A2GF is fetched by engine.py, the
+    NETWORK engine, which shares no code path with this one. The module
+    docstring made the same claim for Sentinel-1 and GRACE.
+
+    That is the exact failure this platform exists to prevent, committed by the
+    platform itself. Every refusal elsewhere is worth nothing beside a sensor
+    list naming an instrument the engine never opened.
+    """
+    # Earth Engine dataset ids, and the label each appears under in the report.
+    DATASETS = {
+        "Sentinel-2": "COPERNICUS/S2_SR",
+        "Sentinel-2 red-edge": "COPERNICUS/S2_SR",
+        "Landsat 8/9 thermal": "LANDSAT/LC0",
+        "CHIRPS": "UCSB-CHG/CHIRPS",
+        "ERA5-Land": "ECMWF/ERA5",
+        "NOAA GFS": "NOAA/GFS",
+        "OpenLandMap": "OpenLandMap",
+    }
+
+    def _chain_source(self):
+        """Every module the agriculture engine actually reaches."""
+        import os
+        src = ""
+        for name in ("agri_engine.py", "agronomy.py",
+                     "nutrition_climate_ground.py", "disease.py", "crops.py"):
+            path = os.path.join(os.path.dirname(__file__), "..", "src", name)
+            src += open(path, encoding="utf-8").read()
+        return src
+
+    def _reported(self, ee_env):
+        import importlib
+        import os
+        importlib.reload(ag)
+        out = ag.analyse_farm(
+            {"type": "FeatureCollection",
+             "features": [_square(33.1, 14.4, 0.004, "A")]},
+            2022, "_sensors_test.json", with_series=False)
+        if os.path.exists("_sensors_test.json"):
+            os.remove("_sensors_test.json")
+        return out["sensors"]
+
+    def test_every_reported_sensor_is_one_the_code_calls(self, ee_env):
+        chain = self._chain_source()
+        for name in self._reported(ee_env):
+            assert name in self.DATASETS, f"{name} is reported but unmapped"
+            assert self.DATASETS[name] in chain, \
+                f"{name} is reported but {self.DATASETS[name]} is never called"
+
+    def test_the_engine_of_a_different_layer_is_not_borrowed(self, ee_env):
+        """MODIS, Sentinel-1 and GRACE belong to the network engine. Listing
+        them here claims a measurement this report does not contain."""
+        reported = self._reported(ee_env)
+        for name in ("MODIS", "Sentinel-1", "GRACE", "GRACE-FO"):
+            assert name not in reported, f"{name} is claimed but never called"
+
+    def test_the_docstring_makes_the_same_list(self):
+        doc = ag.__doc__
+        for name in ("Sentinel-1", "MODIS", "GRACE-FO"):
+            claim = f"    {name}"
+            assert claim not in doc, f"the docstring still advertises {name}"
+
+    def test_the_datasets_the_code_does_call_are_all_declared(self, ee_env):
+        """The other direction: a dataset fetched but not declared is an
+        undisclosed source, which is the same failure facing the other way."""
+        chain = self._chain_source()
+        reported = set(self._reported(ee_env))
+        for ident in ("COPERNICUS/S2_SR", "LANDSAT/LC0", "UCSB-CHG/CHIRPS",
+                      "ECMWF/ERA5", "NOAA/GFS", "OpenLandMap"):
+            if ident in chain:
+                assert any(self.DATASETS.get(n) == ident for n in reported), \
+                    f"{ident} is fetched but declared to nobody"

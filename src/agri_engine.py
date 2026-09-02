@@ -23,25 +23,35 @@ advisory, records, scouting. The same list, and the same shape of answer.
 
 WHERE IT DIFFERS, AND WHY THAT IS NOT MARKETING
 ------------------------------------------------
-Ten data sources against the one or two a typical app uses, and every one of them
-earns its place by answering something the others cannot:
+SEVEN data sources, and this list is exactly what the code calls:
 
-    Sentinel-2          vigour, canopy moisture, irrigated extent
+    Sentinel-2          vigour, canopy moisture, greenness, the anomaly scan
     Sentinel-2 red-edge chlorophyll without saturating over a dense canopy,
                         which is exactly where nitrogen questions arise
     Landsat 8/9 thermal a DIRECT stress measure - a transpiring crop cools
                         itself - that moves days before NDVI does
-    Sentinel-1 radar    cloud- and dust-proof observation
     CHIRPS              rainfall, which separates drought from everything else
-    ERA5-Land           the FAO-56 inputs, growing degree days, heat stress
-    MODIS               actual evapotranspiration at command scale
-    NOAA GFS            the short outlook
+    ERA5-Land           the FAO-56 inputs, growing degree days, heat stress,
+                        and the humidity the disease windows need
+    NOAA GFS            the short outlook, ~28 km, scheme scale not field scale
     OpenLandMap         soil texture, which explains why two fields differ
-    GRACE-FO            regional storage context ONLY - never field scale
 
-More sensors is not automatically better. What makes it better here is that each
-one is reported at the scale it can support and refused at the scale it cannot -
-thermal at 100 m is a large-field measure, GRACE at 300 km is a regional one, and
+This list said TEN, and named Sentinel-1, MODIS and GRACE-FO. This engine has
+never called any of the three: they belong to engine.py, the NETWORK engine,
+which shares no code path with this one. The report's own `sensors` table
+carried MODIS too, and the About page printed it to the reader as a source the
+figures rested on.
+
+That is the exact failure this platform exists to prevent, committed by the
+platform itself. Every refusal elsewhere - the grey for unmeasured, the locked
+yield, the disease that will not be named - is worth nothing beside a sensor
+list that includes an instrument the engine never opened. A test now compares
+the reported table against the dataset strings the code actually contains, so
+the next addition to the list has to be an addition to the code.
+
+More sensors is not automatically better. What makes this better is that each
+one is reported at the scale it can support and refused at the scale it cannot:
+thermal at 100 m is a large-field measure, GFS at 28 km is a regional one, and
 neither is allowed to masquerade as a field-scale number.
 
 THE FARMER'S ACTUAL QUESTION
@@ -966,13 +976,27 @@ def analyse_farm(field_fc: dict, season: int, out_json: str,
         "season": {"start": start, "end": end},
         "crop": crop,
         "n_fields": len(feats),
+        # EXACTLY the datasets this engine calls. Nothing else.
+        #
+        # This table listed MODIS "actual evapotranspiration", and the About
+        # page printed it to the reader as a source the report rested on. This
+        # engine has never called MODIS: MOD16A2GF is fetched by engine.py, the
+        # NETWORK engine, which shares no code path with this one. The module
+        # docstring made the same claim for Sentinel-1 and GRACE.
+        #
+        # That is the exact failure this platform exists to prevent, committed
+        # by the platform itself: a provenance claim for a measurement that was
+        # never made. Every refusal elsewhere - the grey for unmeasured, the
+        # locked yield, the disease that will not be named - is worth nothing
+        # beside a sensors table that lists an instrument the engine never
+        # opened. A test now compares this table against the dataset strings
+        # the code actually contains.
         "sensors": {
             "Sentinel-2": "10 m optical - vigour, canopy moisture, greenness",
             "Sentinel-2 red-edge": "B5-B7 - chlorophyll without saturating",
             "Landsat 8/9 thermal": "100 m LST - direct water-stress measure",
             "CHIRPS": "daily rainfall - separates drought from crop problems",
             "ERA5-Land": "FAO-56 inputs, growing degree days, heat stress",
-            "MODIS": "actual evapotranspiration",
             "NOAA GFS": "7-day outlook, ~28 km - scheme scale, not field scale",
             "OpenLandMap": "soil texture, 250 m - explains standing differences",
         },
