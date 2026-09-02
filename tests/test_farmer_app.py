@@ -1596,3 +1596,74 @@ class TestTheMapMeasuresInUnitsThisReaderUses:
         html = self._html()
         assert "hectares" in html
         assert "meters" in html
+
+
+class TestNoControlDisappearsSilently:
+    """
+    The general form of a mistake made while fixing the scale bar.
+
+    Trying to remove the imperial line, the control was injected into the map's
+    ROOT script - and streamlit-folium rebuilds the map from its properties and
+    drops that, so the scale bar vanished altogether instead of losing its
+    second line. A feature removed while being repaired, and the whole suite
+    stayed green: nothing asserted the map still carried what it was supposed
+    to carry. It was found by looking at the running page.
+
+    The one-off fix was a test that the scale bar exists. That is not enough -
+    the SAME thing can happen to the draw tools, the search, the measure tool
+    or the layer control, each of which is added by the same kind of call and
+    would disappear just as quietly. So this walks the whole set.
+
+    A control that is removed ON PURPOSE fails here, which is correct: taking a
+    tool off the map is a decision, and it should cost one line in a test
+    rather than happening by accident.
+    """
+    # marker in the rendered HTML -> what a reader loses if it goes missing
+    CONTROLS = {
+        "L.control.scale": "the scale bar - no way to judge a distance",
+        "L.Control.Draw": "the polygon tool - no way to define a field",
+        "L.Control.Measure": "the measure tool - no area while drawing",
+        "L.Control.geocoder": "the place search - no way to reach your land",
+        "L.Control.MiniMap": "the mini map - no sense of where you are",
+        "L.control.layers": "the layer switch - no way back to the street map",
+        "World_Imagery": "the satellite tiles - the reference for the drawing",
+    }
+
+    def _html(self, drawing=True):
+        import fieldmap as FM
+        feats = [{"name": "F", "polygon": [[33.10, 14.42], [33.106, 14.42],
+                                           [33.106, 14.426], [33.10, 14.426],
+                                           [33.10, 14.42]],
+                  "colour": [70, 150, 95, 170], "status": "ok",
+                  "status_key": "ok", "vigour_display": "0.300", "why": "-"}]
+        return FM.build_map(feats, (14.42, 33.10),
+                            drawing=drawing).get_root().render()
+
+    def test_every_control_the_map_promises_is_actually_rendered(self):
+        html = self._html()
+        missing = [f"{m} ({why})" for m, why in self.CONTROLS.items()
+                   if m not in html]
+        assert not missing, "silently gone from the map: " + "; ".join(missing)
+
+    def test_none_of_them_is_rendered_twice(self):
+        """Two scale bars is the other way this goes wrong, and it looks like
+        a styling bug rather than a duplicated control."""
+        html = self._html()
+        doubled = [m for m in ("L.control.scale", "L.Control.Draw",
+                               "L.Control.geocoder", "L.Control.MiniMap")
+                   if html.count(m) > 1]
+        assert not doubled, doubled
+
+    def test_the_field_itself_is_drawn(self):
+        """The controls are worth nothing if the field is not on the map."""
+        assert "L.polygon" in self._html()
+
+    def test_turning_the_drawing_off_removes_only_the_drawing_tools(self):
+        """The read-only map still needs its scale, its search and its
+        imagery - it is the same map without the pencil."""
+        html = self._html(drawing=False)
+        assert "L.Control.Draw" not in html
+        assert "L.Control.Measure" not in html
+        for kept in ("L.control.scale", "L.Control.geocoder",
+                     "L.Control.MiniMap", "World_Imagery"):
+            assert kept in html, kept
