@@ -128,9 +128,42 @@ class TestTheContentSurvivesTheTrip:
         assert "not available" in doc
         assert "no pixels" in doc          # the reason, as the row's tooltip
 
-    def test_the_limitations_travel_in_the_readers_language(self):
-        assert "الحرارة تُقاس عند 100 متر." in RH.build(REPORT, FC, ar=True)
-        assert "Thermal is 100 m." in RH.build(REPORT, FC, ar=False)
+    def test_the_limitations_block_is_not_on_the_sheet(self):
+        """Eleven bullets at the END of a printed sheet restate what is
+        already said beside each number - "احتياج، لا ما وصل" on the water row,
+        "not available" with its reason on any row that could not be measured,
+        the sensor and scale columns on every row - and they are the last thing
+        the eye lands on, AFTER the answer the reader came for. A caveat that
+        arrives after the decision is decoration."""
+        for ar in (True, False):
+            doc = RH.build(REPORT, FC, ar=ar)
+            # The HEADING and the bullets are gone. The footer still names the
+            # section, which is the point of the footer.
+            assert "<h2>ما لا تدّعيه هذه الأداة</h2>" not in doc
+            assert "What this tool does not claim</h2>" not in doc
+            assert "<ul class=" not in doc
+            assert "الحرارة تُقاس عند 100 متر." not in doc
+            assert "Thermal is 100 m." not in doc
+
+    def test_but_the_footer_says_where_they_are_and_how_many(self):
+        """Removed from the sheet is not removed from the record."""
+        doc = RH.build(REPORT, FC, ar=True)
+        assert "التقرير الأصلي" in doc and "عن البيانات" in doc
+        assert "(1 بندًا)" in doc
+        en = RH.build(REPORT, FC, ar=False)
+        assert "(1 points)" in en and "About page" in en
+
+    def test_the_caveats_that_change_a_decision_are_still_beside_the_number(
+            self):
+        """The block went; the inline refusals did not. These are the ones
+        that change what a reader concludes, and they sit on the row."""
+        doc = RH.build(REPORT, FC, ar=True)
+        # "not available" with its reason, on the row it belongs to.
+        assert "غير متاح" in doc
+        assert "no cloud-free scene" in doc
+        # and the provenance columns, so a 100 m reading is visibly not a 10 m
+        # one without anybody reading a footnote.
+        assert "Sentinel-2 median" in doc and "5.5 km" in doc
 
     def test_a_demonstration_report_says_so_on_the_page(self):
         r = dict(REPORT, note="DEMONSTRATION DATA. Boundaries are invented.",
@@ -256,3 +289,64 @@ class TestNoEnglishLeaksIntoTheArabicSheet:
                 assert pair[0] and pair[1], f"{name}.{key}"
                 assert pair[0] != pair[1] or key in ("unknown",), \
                     f"{name}.{key} is untranslated"
+
+
+class TestTheSheetLooksLikeADocument:
+    """
+    On a SCREEN this is the thing somebody was handed - by email, on a memory
+    stick. A white page with hairlines reads as a debug dump, and a reader who
+    thinks they have been sent a debug dump reads the numbers with less care
+    than they deserve.
+
+    On PAPER it is a working sheet that gets photocopied for a meeting, so
+    every ornament has to come off. Both, from one file.
+    """
+    def test_the_page_has_a_ground_to_sit_on(self):
+        doc = RH.build(REPORT, FC)
+        assert "radial-gradient" in doc
+        assert "body {" in doc.replace("\n", " ") or "body{" in doc
+
+    def test_the_header_is_a_band_not_a_bare_line(self):
+        doc = RH.build(REPORT, FC)
+        assert 'class="head"' in doc
+        assert "linear-gradient" in doc
+
+    def test_the_pattern_sits_behind_the_text_not_over_it(self):
+        """As ::after with no z-index it painted last and washed the subtitle
+        out. A decoration that makes a sentence harder to read has taken
+        something real and given back nothing."""
+        doc = RH.build(REPORT, FC)
+        assert ".head::after" in doc
+        assert "z-index:0" in doc
+        assert ".head h1, .head .sub, .head .tags { position:relative; " \
+               "z-index:1; }" in doc
+
+    def test_print_strips_every_ornament(self):
+        """A gradient across an A4 sheet is a cartridge, and the photocopy it
+        becomes is a grey wash over the numbers."""
+        block = RH.CSS.split("@media print")[1].split("@media (max-width")[0]
+        assert "background:#fff" in block.replace(" ", "")
+        assert ".head::after{display:none}" in block.replace(" ", "").replace(
+            ";}", "}")
+        assert "box-shadow:none" in block.replace(" ", "")
+
+    def test_the_status_colours_still_print(self):
+        """They carry the only claim the map makes, and each also has a mark
+        for the monochrome copy."""
+        block = RH.CSS.split("@media print")[1]
+        assert "print-color-adjust:exact" in block.replace(" ", "")
+
+    def test_a_wide_table_scrolls_in_its_box_and_never_the_page(self):
+        """Six columns forced into 400 px do not become a small table - they
+        become a tall one, every row wrapping to three lines, and a reader
+        scanning for one number loses the row they were on."""
+        assert "min-width:560px" in RH.CSS.replace(" ", "")
+        assert "overflow-x:auto" in RH.CSS.replace(" ", "")
+
+    def test_a_field_label_on_the_map_stays_readable_over_any_colour(self):
+        assert "paint-order:stroke" in RH.CSS
+
+    def test_none_of_it_costs_a_network_request(self):
+        """The whole point of the file. A gradient is CSS; a background image
+        would not be."""
+        assert RH.external_references(RH.build(REPORT, FC)) == []

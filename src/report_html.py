@@ -183,74 +183,206 @@ def svg_map(features: list, statuses: dict, width: int = 640,
 # ==============================================================================
 
 CSS = """
-:root { --ink:#1C2321; --soft:#5A6560; --line:#E3DED3; --paper:#fff; }
-* { box-sizing: border-box; }
-body { margin:0; padding:24px; background:#FBFAF7; color:var(--ink);
+/* ============================================================================
+   THE SHEET
+
+   Two constraints pull against each other here and both have to be met.
+
+   On a SCREEN this is the thing somebody was handed - by email, on a memory
+   stick - and it has to look like a document that was made on purpose. A white
+   page with hairlines reads as a debug dump, and a reader who thinks they have
+   been sent a debug dump reads the numbers with less care than they deserve.
+
+   On PAPER it is a working sheet that will be photocopied for a meeting. So
+   every ornament is stripped in the print stylesheet: no gradients, no tints,
+   no shadows. What survives is the structure, the type, and the status MARKS -
+   because on the photocopy that reaches the meeting, red and green are the
+   same grey.
+
+   Nothing below is fetched. No webfont, no icon set, no image: the background
+   is CSS gradients over the same warm paper the app uses, and the map is an
+   inline SVG. A page that phones home tells a third party which tenancy is
+   being looked at.
+   ============================================================================ */
+
+:root {
+  --ink:#1C2321; --soft:#5A6560; --line:#E3DED3;
+  --paper:#FBFAF7; --surface:#fff;
+  --crop:#1F7A4D;                 /* the scheme green, used only as accent */
+  --t-xs:11.5px; --t-sm:12.5px; --t-md:14px; --t-lg:17px; --t-xl:22px;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px;
+  --r-sm:8px; --r-md:12px; --r-lg:18px;
+  --e-1:0 1px 2px rgba(28,35,33,.05), 0 1px 1px rgba(28,35,33,.03);
+  --e-2:0 4px 16px rgba(28,35,33,.07), 0 1px 3px rgba(28,35,33,.05);
+}
+
+* { box-sizing:border-box; }
+
+/* The ground. Two very wide, very faint radial washes over warm paper - one
+   green at the top, one clay at the bottom - so the page has a direction and
+   the white cards have something to sit ON. Both are far below the threshold
+   where a tint starts competing with a status colour, which is the only thing
+   on this page allowed to mean something by being coloured. */
+body {
+  margin:0; padding:var(--sp-6) var(--sp-4); min-height:100vh;
+  color:var(--ink); font-size:var(--t-md); line-height:1.6;
   font-family:'Segoe UI','SF Arabic','Noto Sans Arabic','Noto Naskh Arabic',
-  Tahoma, system-ui, sans-serif; font-size:14px; line-height:1.55; }
+              Tahoma, system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 78% -8%, rgba(31,122,77,.07), transparent 60%),
+    radial-gradient(900px 500px at 12% 108%, rgba(196,140,74,.06), transparent 60%),
+    var(--paper);
+  background-attachment:fixed;
+}
 body.rtl { direction:rtl; text-align:right; }
-.wrap { max-width:900px; margin:0 auto; }
-h1 { font-size:1.4rem; margin:0 0 .2rem; }
-h2 { font-size:1.05rem; margin:1.6rem 0 .4rem;
-     border-bottom:1px solid var(--line); padding-bottom:.25rem; }
-.sub { color:var(--soft); font-size:.85rem; margin:0 0 1rem; }
-.tags { margin:.5rem 0 1rem; }
-.tag { display:inline-block; border:1px solid var(--line); border-radius:999px;
-  padding:.1rem .6rem; font-size:.75rem; color:var(--soft); margin-inline-end:.35rem;
-  background:#fff; }
-.tag.demo { border-color:#EBA537; background:#FDF6E7; color:#8A5B08;
-  font-weight:700; }
-table { width:100%; border-collapse:collapse; font-size:.82rem;
-  background:var(--paper); }
-th { text-align:start; font-size:.7rem; text-transform:uppercase;
-  letter-spacing:.05em; color:var(--soft); border-bottom:1px solid var(--line);
-  padding:.35rem .45rem; }
-td { padding:.35rem .45rem; border-bottom:1px solid #F2EFE8; vertical-align:top; }
-td.v { font-variant-numeric:tabular-nums; font-weight:600; }
-td.meta { color:var(--soft); font-size:.76rem; }
+
+.wrap { max-width:940px; margin:0 auto; }
+
+/* ------------------------------------------------------------------ header */
+/* A band, not a line of text. It is the first thing on the page and the only
+   place the document says what it is. */
+.head {
+  background:linear-gradient(135deg, #1F7A4D 0%, #2E6B4F 55%, #38614C 100%);
+  color:#fff; border-radius:var(--r-lg);
+  padding:var(--sp-5) var(--sp-5) var(--sp-4);
+  box-shadow:var(--e-2); margin-bottom:var(--sp-5);
+  position:relative; overflow:hidden;
+}
+/* A faint furrow pattern, drawn with a repeating gradient rather than an
+   image, so the header carries something of a field without fetching one. */
+/* The furrow pattern is drawn BEHIND the text, not over it.
+   As ::after with no z-index it painted last and washed the subtitle out -
+   a decoration that makes a sentence harder to read has taken something
+   real and given back nothing. */
+.head::after {
+  content:""; position:absolute; inset:0; z-index:0; opacity:.10;
+  pointer-events:none;
+  background:repeating-linear-gradient(115deg,
+    rgba(255,255,255,.9) 0 1px, transparent 1px 22px);
+}
+.head h1, .head .sub, .head .tags { position:relative; z-index:1; }
+.head h1 {
+  margin:0; font-size:var(--t-xl); font-weight:700; letter-spacing:-.015em;
+}
+.head .sub {
+  margin:var(--sp-2) 0 0; font-size:var(--t-sm); color:#EAF3ED;
+  max-width:70ch;
+}
+.tags { margin:var(--sp-3) 0 0; }
+.tag {
+  display:inline-block; border:1px solid rgba(255,255,255,.35);
+  border-radius:999px; padding:2px var(--sp-3); font-size:var(--t-xs);
+  color:#fff; background:rgba(255,255,255,.13);
+  margin-inline-end:var(--sp-2); margin-bottom:var(--sp-1);
+  white-space:nowrap;
+}
+.tag.demo {
+  border-color:#F6D08A; background:#FBEBC8; color:#7A4E06; font-weight:700;
+}
+
+/* ---------------------------------------------------------------- headings */
+h2 {
+  font-size:var(--t-lg); font-weight:700; margin:var(--sp-6) 0 var(--sp-3);
+  padding-inline-start:var(--sp-3); border-inline-start:3px solid var(--crop);
+  line-height:1.25;
+}
+.sub { color:var(--soft); font-size:var(--t-sm); margin:0 0 var(--sp-3); }
+
+/* ------------------------------------------------------------------- cards */
+.field, .map {
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--r-md); box-shadow:var(--e-1);
+}
+.map { padding:var(--sp-3); overflow-x:auto; }
+.field {
+  padding:var(--sp-4); margin-bottom:var(--sp-3);
+  border-inline-start:4px solid var(--accent, var(--line));
+}
+.field h3 {
+  margin:0 0 var(--sp-1); font-size:var(--t-md); font-weight:700;
+  display:flex; align-items:center; gap:var(--sp-2); flex-wrap:wrap;
+}
+.chip {
+  display:inline-block; padding:2px var(--sp-2); border-radius:999px;
+  color:#fff; font-size:var(--t-xs); font-weight:700;
+}
+
+svg { display:block; max-width:100%; height:auto; }
+.lbl { font-size:10px; fill:#111; text-anchor:middle;
+       paint-order:stroke; stroke:#fff; stroke-width:2.5px;
+       stroke-linejoin:round; }
+.scale { font-size:10px; fill:#111; }
+.cap { font-size:var(--t-xs); color:var(--soft); margin:var(--sp-2) 0 0; }
+.none { color:var(--soft); font-style:italic; }
+
+/* ------------------------------------------------------------------ tables */
+.tblwrap { overflow-x:auto; -webkit-overflow-scrolling:touch;
+           margin-top:var(--sp-3); }
+/* min-width, so the table SCROLLS inside its box on a narrow screen instead
+   of squeezing. Six columns forced into 400 px do not become a small table -
+   they become a tall one, every row wrapping to three lines, and a reader
+   scanning for one number loses the row they were on. Scrolling sideways is
+   a smaller cost than that, and the page itself never scrolls sideways. */
+table { width:100%; min-width:560px; border-collapse:collapse;
+        font-size:var(--t-sm); background:var(--surface); }
+th {
+  text-align:start; font-size:var(--t-xs); letter-spacing:.04em;
+  color:var(--soft); font-weight:700; padding:var(--sp-2);
+  border-bottom:2px solid var(--line); white-space:nowrap;
+}
+td { padding:var(--sp-2); border-bottom:1px solid #F2EFE8;
+     vertical-align:top; }
+tr:nth-child(even) td { background:#FCFBF8; }
+td.v { font-weight:700; font-variant-numeric:tabular-nums; }
+td.meta { color:var(--soft); font-size:var(--t-xs); }
 tr.na td { color:var(--soft); font-style:italic; }
 td.below { color:#C83C2D; font-weight:700; }
-.field { border:1px solid var(--line); border-radius:10px; background:#fff;
-  padding:.8rem 1rem; margin-bottom:.8rem; }
-.field h3 { margin:0 0 .3rem; font-size:1rem; }
-.chip { display:inline-block; padding:.1rem .5rem; border-radius:999px;
-  color:#fff; font-size:.72rem; font-weight:700; }
-.note { border-inline-start:3px solid var(--line); padding:.3rem .7rem;
-  color:var(--soft); font-size:.8rem; margin:.5rem 0; }
-.note.warn { border-inline-start-color:#EBA537; }
-.note.stop { border-inline-start-color:#C83C2D; }
-.map { background:#fff; border:1px solid var(--line); border-radius:10px;
-  padding:.6rem; overflow-x:auto; }
-svg { display:block; max-width:100%; height:auto; }
-/* A six-column table on a 390 px phone overflows the page, and a page that
-   scrolls sideways is a page whose right-hand column nobody reads. The table
-   scrolls inside its own box; the page never does. */
-.tblwrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-@media (max-width:560px) {
-  body { padding:12px; font-size:13px; }
-  .field { padding:.6rem .7rem; }
-  h1 { font-size:1.2rem; }
-}
-.lbl { font-size:10px; fill:#111; text-anchor:middle; }
-.scale { font-size:10px; fill:#111; }
-.cap { font-size:.75rem; color:var(--soft); margin:.35rem 0 0; }
-.none { color:var(--soft); font-style:italic; }
-ul.limits { padding-inline-start:1.1rem; }
-ul.limits li { font-size:.8rem; color:var(--soft); margin-bottom:.25rem; }
-footer { margin-top:2rem; padding-top:.6rem; border-top:1px solid var(--line);
-  font-size:.72rem; color:var(--soft); }
 
+/* ------------------------------------------------------------------- notes */
+.note {
+  border-inline-start:3px solid var(--line);
+  background:rgba(255,255,255,.6);
+  padding:var(--sp-2) var(--sp-3); border-radius:0 var(--r-sm) var(--r-sm) 0;
+  color:var(--soft); font-size:var(--t-sm); margin:var(--sp-3) 0;
+}
+.note.warn { border-inline-start-color:#EBA537; background:#FDF8ED; }
+.note.stop { border-inline-start-color:#C83C2D; background:#FDF1EF; }
+
+footer {
+  margin-top:var(--sp-6); padding-top:var(--sp-3);
+  border-top:1px solid var(--line); font-size:var(--t-xs);
+  color:var(--soft); line-height:1.7;
+}
+
+/* -------------------------------------------------------------------- print */
 @media print {
-  /* Page breaks placed so a field never splits across two sheets, and the
-     background printed so the status colours survive - but every status also
-     carries a MARK, because on a monochrome photocopy red and green are the
-     same grey. */
+  /* Every ornament off. A gradient across an A4 sheet is a cartridge, and the
+     photocopy it becomes is a grey wash over the numbers. */
   body { background:#fff; padding:0; font-size:11pt; }
-  .field { break-inside:avoid; page-break-inside:avoid; }
+  .head {
+    background:#fff; color:var(--ink); box-shadow:none;
+    border:0; border-bottom:2px solid var(--crop); border-radius:0;
+    padding:0 0 var(--sp-3);
+  }
+  .head::after { display:none; }
+  .head .sub { opacity:1; color:var(--soft); }
+  .tag { border-color:var(--line); background:transparent; color:var(--soft); }
+  .tag.demo { border-color:#C87A06; color:#7A4E06; font-weight:700; }
+  .field, .map { box-shadow:none; break-inside:avoid; page-break-inside:avoid; }
+  .note { background:transparent; }
+  tr:nth-child(even) td { background:transparent; }
   h2 { break-after:avoid; page-break-after:avoid; }
   .noprint { display:none; }
   a[href]:after { content:""; }
+  /* The status colours DO print - each also carries a mark, because on a
+     monochrome photocopy red and green are the same grey. */
   * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+}
+
+@media (max-width:560px) {
+  body { padding:var(--sp-3); font-size:13px; }
+  .head { padding:var(--sp-4); border-radius:var(--r-md); }
+  .field { padding:var(--sp-3); }
 }
 """
 
@@ -424,9 +556,19 @@ def build(report: dict, field_fc: Optional[dict] = None,
         f'{(STATUS_AR if ar else STATUS_EN)[k]} — {counts[k]}</span>'
         for k in ("attention", "watch", "ok", "unmeasured"))
 
+    # A header BAND, not a line of text. It is the first thing on the page and
+    # the only place the document says what it is - a sheet that opens with a
+    # bare heading over white reads as a debug dump, and a reader who thinks
+    # they have been sent a debug dump reads the numbers with less care than
+    # they deserve. In print it collapses to a rule under the title.
+    sub = ("حالة كل حقل، واحتياجه من الماء، وما قيس وما لم يُقَس." if ar else
+           "Every field's state, its water requirement, and what was and was "
+           "not measured.")
     body = [
-        f'<div class="wrap"><h1>{_e(heading)}</h1>',
-        f'<div class="tags">{tag_html}</div>',
+        '<div class="wrap">',
+        f'<header class="head"><h1>{_e(heading)}</h1>'
+        f'<p class="sub">{_e(sub)}</p>'
+        f'<div class="tags">{tag_html}</div></header>',
         f'<h2>{"الخريطة" if ar else "Map"}</h2>',
         f'<div class="map">{svg_map((field_fc or {}).get("features", []), statuses, ar=ar)}</div>',
         f'<p class="cap">{legend}</p>',
@@ -440,26 +582,43 @@ def build(report: dict, field_fc: Optional[dict] = None,
         body.append(_field_block(rec, statuses.get(rec.get("name", ""),
                                                    "unmeasured"), ar))
 
-    limits = ((report.get("limitations_ar") if ar else None)
-              or report.get("limitations") or [])
-    if limits:
-        body.append(f'<h2>{"ما لا تدّعيه هذه الأداة" if ar else "What this tool does not claim"}</h2>')
-        body.append('<ul class="limits">'
-                    + "".join(f"<li>{_e(x)}</li>" for x in limits) + "</ul>")
-
+    # THE ELEVEN-BULLET LIMITATIONS BLOCK IS GONE FROM THE SHEET.
+    #
+    # Not because the limits stopped mattering - because every one of them is
+    # already said WHERE IT APPLIES, beside the number it constrains:
+    #
+    #   "احتياج، لا ما وصل"          on the ETc row
+    #   "not available" + its reason  on any row that could not be measured
+    #   the sensor and scale columns  on every row, so a 100 m thermal
+    #                                 reading is visibly not a 10 m one
+    #   the disease claim level       on the disease block
+    #
+    # A wall of eleven bullets at the end of a printed sheet restates all of
+    # that in a place nobody reads, and it is the last thing on the page - so
+    # it is what the reader's eye lands on after the answer they came for. A
+    # caveat that arrives after the decision has been made is decoration.
+    #
+    # The full statement is not lost. It lives in the JSON report the sheet was
+    # built from, and on the app's "About the data" page, and one line in the
+    # footer says so.
     if report.get("note"):
         body.append(f'<div class="note stop">'
                     f'{_e(report.get("note_ar") if ar and report.get("note_ar") else report.get("note"))}'
                     f'</div>')
 
+    n_limits = len((report.get("limitations_ar") if ar else None)
+                   or report.get("limitations") or [])
+    where = (f" وما لا تدّعيه هذه الأداة ({n_limits} بندًا) في التقرير "
+             "الأصلي وفي صفحة «عن البيانات»." if ar else
+             f" What this tool does not claim ({n_limits} points) is in the "
+             "source report and on the About page.") if n_limits else ""
+
     body.append(
         '<footer>' + _e(
-            ("وُلِّد هذا الملف مكتفيًا بذاته: لا يطلب شيئًا من الشبكة، ويُفتح "
-             "بلا خادم. " if ar else
-             "This file is self-contained: it requests nothing from the "
-             "network and opens with no server. ")
-            + f'{report.get("generated_utc", "")} · '
-            + f'{datetime.now(timezone.utc).strftime("%Y-%m-%d")}')
+            ("ملفّ مكتفٍ بذاته: لا يطلب شيئًا من الشبكة." if ar else
+             "A self-contained file: it requests nothing from the network.")
+            + where
+            + f'  ·  {str(report.get("generated_utc", ""))[:19]}')
         + '</footer></div>')
 
     return ("<!doctype html><html lang=\"" + ("ar" if ar else "en")
