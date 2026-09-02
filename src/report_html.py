@@ -218,34 +218,53 @@ CSS = """
 
 * { box-sizing:border-box; }
 
-/* The ground. Two very wide, very faint radial washes over warm paper - one
-   green at the top, one clay at the bottom - so the page has a direction and
-   the white cards have something to sit ON. Both are far below the threshold
-   where a tint starts competing with a status colour, which is the only thing
-   on this page allowed to mean something by being coloured. */
+/* A SHEET ON A SURFACE.
+   
+   The first version put faint washes straight onto the paper colour at six per
+   cent - a decision nobody could see, which is a decision not taken. What was
+   missing was not more tint; it was the distinction between the GROUND and the
+   DOCUMENT.
+   
+   So the body is now a surface - a warm, slightly darker field with a green
+   wash where the light falls - and the report is a white sheet lying on it,
+   with the shadow a sheet of paper casts. That is what somebody handed this
+   file is being handed: a document, not a screen of results. It costs nothing
+   to load, because a gradient is CSS.
+   
+   The washes are still kept well below the level where a tint competes with a
+   status colour. On this page a colour that means something is red, amber,
+   green or grey, and it means it on a field. Nothing else may compete. */
 body {
   margin:0; padding:var(--sp-6) var(--sp-4); min-height:100vh;
   color:var(--ink); font-size:var(--t-md); line-height:1.6;
   font-family:'Segoe UI','SF Arabic','Noto Sans Arabic','Noto Naskh Arabic',
               Tahoma, system-ui, sans-serif;
   background:
-    radial-gradient(1200px 600px at 78% -8%, rgba(31,122,77,.07), transparent 60%),
-    radial-gradient(900px 500px at 12% 108%, rgba(196,140,74,.06), transparent 60%),
-    var(--paper);
+    radial-gradient(1100px 520px at 80% -12%, rgba(31,122,77,.20), transparent 62%),
+    radial-gradient(900px 460px at 6% 112%, rgba(140,98,52,.16), transparent 62%),
+    linear-gradient(180deg, #EFEDE6 0%, #E9E6DD 100%);
   background-attachment:fixed;
 }
 body.rtl { direction:rtl; text-align:right; }
 
-.wrap { max-width:940px; margin:0 auto; }
+/* The sheet. Its own shadow, and the header bleeds to its edges - which is
+   what makes it read as a printed page rather than a div with a border. */
+.wrap {
+  max-width:940px; margin:0 auto; background:#fff;
+  border-radius:var(--r-lg); overflow:hidden;
+  padding:0 var(--sp-5) var(--sp-5);
+  box-shadow:0 12px 40px rgba(28,35,33,.13), 0 2px 8px rgba(28,35,33,.07);
+}
 
 /* ------------------------------------------------------------------ header */
 /* A band, not a line of text. It is the first thing on the page and the only
    place the document says what it is. */
 .head {
   background:linear-gradient(135deg, #1F7A4D 0%, #2E6B4F 55%, #38614C 100%);
-  color:#fff; border-radius:var(--r-lg);
-  padding:var(--sp-5) var(--sp-5) var(--sp-4);
-  box-shadow:var(--e-2); margin-bottom:var(--sp-5);
+  color:#fff; border-radius:0;
+  /* Full-bleed to the sheet's edges, undoing the sheet's own padding. */
+  margin:0 calc(-1 * var(--sp-5)) var(--sp-5);
+  padding:var(--sp-5);
   position:relative; overflow:hidden;
 }
 /* A faint furrow pattern, drawn with a repeating gradient rather than an
@@ -289,9 +308,13 @@ h2 {
 .sub { color:var(--soft); font-size:var(--t-sm); margin:0 0 var(--sp-3); }
 
 /* ------------------------------------------------------------------- cards */
+/* On a white sheet a white card is invisible, so these carry a hairline and a
+   breath of warmth instead of a shadow. The status stripe does the rest of the
+   work, which is the correct division: the colour that means something is on
+   the edge of the field it means it about. */
 .field, .map {
-  background:var(--surface); border:1px solid var(--line);
-  border-radius:var(--r-md); box-shadow:var(--e-1);
+  background:#FCFBF8; border:1px solid var(--line);
+  border-radius:var(--r-md);
 }
 .map { padding:var(--sp-3); overflow-x:auto; }
 .field {
@@ -359,11 +382,16 @@ footer {
   /* Every ornament off. A gradient across an A4 sheet is a cartridge, and the
      photocopy it becomes is a grey wash over the numbers. */
   body { background:#fff; padding:0; font-size:11pt; }
+  .wrap {
+    box-shadow:none; border-radius:0; padding:0; background:#fff;
+    max-width:none;
+  }
   .head {
     background:#fff; color:var(--ink); box-shadow:none;
     border:0; border-bottom:2px solid var(--crop); border-radius:0;
-    padding:0 0 var(--sp-3);
+    margin:0 0 var(--sp-3); padding:0 0 var(--sp-3);
   }
+  .field, .map { background:#fff; }
   .head::after { display:none; }
   .head .sub { opacity:1; color:var(--soft); }
   .tag { border-color:var(--line); background:transparent; color:var(--soft); }

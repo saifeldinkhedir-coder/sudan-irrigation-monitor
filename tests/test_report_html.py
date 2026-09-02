@@ -350,3 +350,66 @@ class TestTheSheetLooksLikeADocument:
         """The whole point of the file. A gradient is CSS; a background image
         would not be."""
         assert RH.external_references(RH.build(REPORT, FC)) == []
+
+
+class TestASheetLyingOnASurface:
+    """
+    The first background put faint washes straight onto the paper colour at six
+    per cent - a decision nobody could see, which is a decision not taken.
+
+    What was missing was not more tint. It was the distinction between the
+    GROUND and the DOCUMENT. The body is a surface now, and the report is a
+    white sheet lying on it with the shadow a sheet of paper casts, because
+    that is what somebody handed this file is being handed: a document, not a
+    screen of results.
+    """
+    def _css(self):
+        return RH.CSS.replace(" ", "").replace("\n", "")
+
+    def test_the_ground_and_the_sheet_are_different_colours(self):
+        """A wash on the same colour as the page is not a background."""
+        css = self._css()
+        assert "linear-gradient(180deg,#EFEDE6" in css
+        assert ".wrap{" in css and "background:#fff" in css
+
+    def test_the_sheet_casts_a_shadow(self):
+        assert "box-shadow:0 12px 40px" in RH.CSS
+
+    def test_the_header_bleeds_to_the_sheet_edges(self):
+        """Which is what makes it read as a printed page rather than a div
+        with a border."""
+        css = self._css()
+        assert "margin:0calc(-1*var(--sp-5))var(--sp-5)" in css
+        assert "overflow:hidden" in css
+
+    def test_the_cards_stay_visible_on_a_white_sheet(self):
+        """A white card on a white sheet is not a card."""
+        assert "#FCFBF8" in RH.CSS
+
+    def test_the_status_colours_are_still_the_loudest_thing_on_the_page(self):
+        """A colour that means something here is red, amber, green or grey,
+        and it means it on a field. The ground washes are kept below the level
+        where they could compete."""
+        import re
+        # Only the GROUND washes. The white furrow inside the header is at .9
+        # of a layer that is itself at .10, and it is not a colour that could
+        # be mistaken for a status.
+        body = RH.CSS.split("body {")[1].split("}")[0]
+        washes = [float(a) for a in re.findall(
+            r"rgba\(\s*\d+,\s*\d+,\s*\d+,\s*(\.\d+)\)", body)]
+        assert washes, "no ground wash found at all"
+        assert max(washes) <= 0.25, washes
+
+    def test_print_flattens_the_sheet_back_to_paper(self):
+        block = RH.CSS.split("@media print")[1].split("@media (max-width")[0]
+        flat = block.replace(" ", "")
+        assert ".wrap{" in flat
+        assert "box-shadow:none" in flat
+        assert "border-radius:0" in flat
+
+    def test_the_whole_ground_is_still_free(self):
+        """A gradient is CSS. A background image would be a network request,
+        and this file exists to make none."""
+        doc = RH.build(REPORT, FC)
+        assert RH.external_references(doc) == []
+        assert "url(" not in doc
