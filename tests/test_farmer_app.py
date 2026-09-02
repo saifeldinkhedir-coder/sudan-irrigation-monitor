@@ -1545,3 +1545,54 @@ class TestNoEnglishLeaksThroughAWidget:
         assert block.count("placeholder=ui.t(") >= 3
         assert "any_ph" in U.T
         assert U.t("any_ph", ar=True) != U.t("any_ph", ar=False)
+
+
+class TestTheMapMeasuresInUnitsThisReaderUses:
+    """
+    The scale bar read "3 km" with "2 mi" directly under it, and measuring a
+    drawn boundary answered "43 hectares / 106 acres". A mile is not a unit
+    anybody in Sudan measures a field with. Two lines, one of them in units the
+    reader does not use, is not extra information - it is a number they have to
+    decide to ignore, every time, beside the one they wanted.
+    """
+    def _html(self):
+        import fieldmap as FM
+        feats = [{"name": "F", "polygon": [[33.10, 14.42], [33.106, 14.42],
+                                           [33.106, 14.426], [33.10, 14.426],
+                                           [33.10, 14.42]],
+                  "colour": [70, 150, 95, 170], "status": "ok",
+                  "status_key": "ok", "vigour_display": "0.300", "why": "-"}]
+        return FM.build_map(feats, (14.42, 33.10)).get_root().render()
+
+    def test_the_scale_bar_is_metric_only(self):
+        html = self._html()
+        assert "L.control.scale" in html
+        assert "imperial: false" in html
+
+    def test_folium_s_own_two_line_scale_is_not_used(self):
+        """Its flag builds Leaflet's default control, which draws both lines
+        and exposes no way to turn the imperial one off."""
+        import inspect
+        import fieldmap as FM
+        src = inspect.getsource(FM.build_map)
+        assert "control_scale=False" in src
+
+    def test_the_scale_bar_did_not_simply_disappear(self):
+        """The first attempt injected the control into the root script, which
+        streamlit-folium drops when it rebuilds the map - so the bar vanished
+        instead of losing its second line, which is worse than the defect."""
+        import fieldmap as FM
+        assert issubclass(FM.MetricScale, FM.MacroElement)
+        html = self._html()
+        assert html.count("L.control.scale") == 1
+
+    def test_the_measure_tool_reports_no_acres_and_no_miles(self):
+        html = self._html()
+        assert "miles" not in html
+        assert "acres" not in html
+
+    def test_the_measure_tool_reports_hectares_and_metres(self):
+        """The units a Sudanese field is actually described in."""
+        html = self._html()
+        assert "hectares" in html
+        assert "meters" in html

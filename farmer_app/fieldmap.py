@@ -44,6 +44,7 @@ import math
 from typing import Optional
 
 import folium
+from branca.element import MacroElement, Template
 from folium.plugins import Draw, Geocoder, MeasureControl, MiniMap
 from streamlit_folium import st_folium
 
@@ -62,6 +63,38 @@ ESRI_ATTR = "Esri, Maxar, Earthstar Geographics"
 ESRI_LABELS = (
     "https://server.arcgisonline.com/ArcGIS/rest/services/"
     "Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}")
+
+
+class MetricScale(MacroElement):
+    """
+    A scale bar in metres and kilometres, and nothing else.
+
+    folium's `control_scale=True` builds Leaflet's default control, which draws
+    TWO lines - metric above imperial - and exposes no way to turn the second
+    one off. The bar read "3 km" over "2 mi". A mile is not a unit anybody in
+    Sudan measures a field with, and the two sat one under the other, so the
+    reader had to decide every time which of the numbers was theirs. Removing
+    it does not simplify the map; it removes a decision that should never have
+    been put to them.
+
+    Written as a MacroElement rather than injected into the root script,
+    because streamlit-folium rebuilds the map from its properties and a script
+    added that way does not survive the trip - the first attempt removed the
+    scale bar altogether instead of fixing it, which is worse than the defect.
+    A MacroElement renders into the map's own script block and does survive.
+    """
+
+    _template = Template("""
+        {% macro script(this, kwargs) %}
+        L.control.scale({
+            imperial: false, metric: true, maxWidth: 140, position: 'bottomleft'
+        }).addTo({{ this._parent.get_name() }});
+        {% endmacro %}
+    """)
+
+    def __init__(self):
+        super().__init__()
+        self._name = "MetricScale"
 
 
 def _hex(rgba) -> str:
@@ -119,8 +152,12 @@ def build_map(features: list, centre: tuple, zoom: int = 14,
     """
     fitted, fitted_zoom = centre_and_zoom(features)
     lat, lon = fitted or centre
+    # control_scale=False, then the scale bar is added by hand below.
+    # folium's flag builds Leaflet's default control, which draws TWO lines -
+    # metric and imperial - and there is no way to turn the second off through
+    # it. The bar read "3 km" above "2 mi".
     m = folium.Map(location=[lat, lon], zoom_start=fitted_zoom or zoom,
-                   tiles=None, control_scale=True)
+                   tiles=None, control_scale=False)
 
     # `show` matters here, not just layer order. Two base layers added without
     # it are BOTH active, and folium paints the later one on top - so adding a
@@ -166,8 +203,18 @@ def build_map(features: list, centre: tuple, zoom: int = 14,
                                                          "weight": 3}}},
             edit_options={"edit": True, "remove": True},
         ).add_to(m)
+        # METRIC ON BOTH LINES.
+        #
+        # leaflet-measure defaults its second line to miles and acres, so
+        # measuring a drawn boundary answered "43 hectares / 106 acres". Sudan
+        # is metric, and Sudanese agriculture measures land in feddan and
+        # hectare; an acre is not a unit anybody here converts from. A second
+        # line in units the reader does not use is not extra information, it is
+        # a number they have to ignore beside the one they wanted.
         MeasureControl(primary_length_unit="meters",
+                       secondary_length_unit="kilometers",
                        primary_area_unit="hectares",
+                       secondary_area_unit="sqmeters",
                        position="bottomleft").add_to(m)
 
     Geocoder(collapsed=False, position="topright",
@@ -175,6 +222,8 @@ def build_map(features: list, centre: tuple, zoom: int = 14,
              ).add_to(m)
     MiniMap(toggle_display=True, position="bottomright").add_to(m)
     folium.LayerControl(collapsed=True, position="topright").add_to(m)
+
+    m.add_child(MetricScale())
     return m
 
 
